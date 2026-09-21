@@ -10,3 +10,8 @@ __pycache__/
 # результаты запусков и служебные папки инструментов
 reports/
 .impeccable/
+
+# сборка
+build/
+dist/
+*.egg-info/

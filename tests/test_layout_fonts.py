@@ -1,6 +1,6 @@
-from browser import run
-from checks.fonts import check_fonts
-from checks.layout import check_layout
+from codecheck_mcp.browser import run
+from codecheck_mcp.checks.fonts import check_fonts
+from codecheck_mcp.checks.layout import check_layout
 
 from conftest import fixture_path
 

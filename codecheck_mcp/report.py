@@ -1,12 +1,14 @@
 """Модель находок и сборка отчёта."""
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 SEVERITIES = ("critical", "high", "medium", "low")
-REPORTS_DIR = Path(__file__).parent / "reports"
+# куда пишутся отчёты: CODECHECK_REPORTS_DIR или ~/codecheck-reports
+REPORTS_DIR = Path(os.environ.get("CODECHECK_REPORTS_DIR") or Path.home() / "codecheck-reports")
 
 
 @dataclass

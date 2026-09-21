@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codecheck-mcp"
+version = "0.1.0"
+description = "MCP-сервер: автоматический QA готового веб-проекта (кнопки, вёрстка, шрифты, картинки, лёгкая безопасность)"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+    "fastmcp>=4.0",
+    "playwright>=1.50",
+    "pillow>=10.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0"]
+
+[project.scripts]
+codecheck-mcp = "codecheck_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/aleks-fw/CodeCheck-MCP"
+
+[tool.setuptools.packages.find]
+include = ["codecheck_mcp*"]

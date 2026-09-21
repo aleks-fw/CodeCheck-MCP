@@ -1,11 +1,8 @@
-import sys
 from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-import report as report_mod  # noqa: E402
+import codecheck_mcp.report as report_mod
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

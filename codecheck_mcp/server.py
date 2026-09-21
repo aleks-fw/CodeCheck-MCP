@@ -5,15 +5,15 @@ import asyncio
 
 from fastmcp import FastMCP
 
-from browser import run
-from checks.fonts import check_fonts
-from checks.images import check_images
-from checks.interactions import check_interactions
-from checks.layout import check_layout
-from checks.security import check_security
+from .browser import run
+from .checks.fonts import check_fonts
+from .checks.images import check_images
+from .checks.interactions import check_interactions
+from .checks.layout import check_layout
+from .checks.security import check_security
 
 mcp = FastMCP(
-    "qa-tester",
+    "codecheck",
     instructions=(
         "Автоматический QA готового веб-проекта. target: URL (https://...) или путь к папке/файлу проекта. "
         "Каждый инструмент возвращает сводку и путь к report.md со скриншотами проблем (красные рамки). "
@@ -71,5 +71,9 @@ async def quick_security(target: str, max_pages: int = 3) -> str:
     return await _run(target, [check_security], max_pages)
 
 
-if __name__ == "__main__":
+def main() -> None:
     mcp.run()
+
+
+if __name__ == "__main__":
+    main()

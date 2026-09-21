@@ -1,8 +1,8 @@
 """Изображения: только измеримое (битые, искажённые, мыльные, тяжёлые, без alt)."""
 from __future__ import annotations
 
-from browser import goto, new_page
-from screenshots import annotate
+from ..browser import goto, new_page
+from ..screenshots import annotate
 
 HEAVY_BYTES = 500 * 1024
 

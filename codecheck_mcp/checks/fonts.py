@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections import Counter
 
-from browser import goto, new_page
+from ..browser import goto, new_page
 
 FONTS_JS = """
 () => {

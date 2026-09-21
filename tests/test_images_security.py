@@ -8,9 +8,9 @@ import threading
 
 from PIL import Image
 
-from browser import run
-from checks.images import check_images
-from checks.security import check_security, find_secrets, mask
+from codecheck_mcp.browser import run
+from codecheck_mcp.checks.images import check_images
+from codecheck_mcp.checks.security import check_security, find_secrets, mask
 
 PAGE = "<!doctype html><html lang=ru><head><meta charset=utf-8><title>t</title></head><body>{}</body></html>"
 

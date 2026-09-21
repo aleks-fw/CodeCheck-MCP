@@ -2,7 +2,7 @@ import asyncio
 
 from fastmcp import Client
 
-from server import mcp
+from codecheck_mcp.server import mcp
 
 from conftest import fixture_path
 

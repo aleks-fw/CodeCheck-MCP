@@ -5,8 +5,8 @@ import io
 
 from PIL import Image
 
-from browser import goto, new_page
-from screenshots import annotate
+from ..browser import goto, new_page
+from ..screenshots import annotate
 
 VIEWPORTS = [(320, 700), (375, 800), (768, 900), (1024, 800), (1440, 900)]
 

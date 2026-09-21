@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import itertools
 
-from report import Report
+from .report import Report
 
 _counter = itertools.count(1)
 

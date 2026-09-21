@@ -3,18 +3,14 @@ from __future__ import annotations
 
 import functools
 import http.server
-import os
 import threading
 from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urldefrag, urljoin, urlparse
 
-# браузеры лежат в папке проекта, а не в профиле пользователя
-os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(Path(__file__).parent / "browsers"))
-
 from playwright.sync_api import sync_playwright  # noqa: E402
 
-from report import Report  # noqa: E402
+from .report import Report  # noqa: E402
 
 PAGE_TIMEOUT_MS = 15000
 EXTERNAL_TIMEOUT_MS = 5000
@@ -178,7 +174,13 @@ def run(target: str, checks: list, report: Report | None = None, max_pages: int 
     with open_target(target) as start_url:
         report = report or Report(target=target)
         with sync_playwright() as pw:
-            browser = pw.chromium.launch()
+            try:
+                browser = pw.chromium.launch()
+            except Exception as e:
+                if "Executable doesn't exist" in str(e) or "playwright install" in str(e):
+                    raise RuntimeError("Браузер Chromium для Playwright не установлен. "
+                                       "Выполните один раз: python -m playwright install chromium") from e
+                raise
             try:
                 report.pages = crawl(browser, report, start_url, max_pages)
                 for url in report.pages:

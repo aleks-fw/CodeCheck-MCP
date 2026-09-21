@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from urllib.parse import urldefrag
 
-from browser import goto, new_page
-from screenshots import annotate
+from ..browser import goto, new_page
+from ..screenshots import annotate
 
 MAX_CANDIDATES = 40
 CLICK_TIMEOUT_MS = 3000

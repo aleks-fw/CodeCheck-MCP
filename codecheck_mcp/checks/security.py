@@ -10,8 +10,8 @@ from collections import Counter
 from pathlib import Path
 from urllib.parse import urlparse
 
-from browser import new_page
-from report import Report
+from ..browser import new_page
+from ..report import Report
 
 SKIP_DIRS = {".git", "node_modules", ".venv", "venv", "__pycache__", "browsers", "reports", ".tmp", ".pipcache",
              "dist", "build", ".next"}
