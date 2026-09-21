@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>Баги кнопок</title>
+<style>body{font-family:Arial,sans-serif;padding:16px} button,a{font-size:16px;margin:6px}
+.fake{cursor:pointer;display:inline-block;padding:8px;background:#eee}
+.cover{position:absolute;left:0;top:250px;width:400px;height:60px;background:rgba(0,0,0,.05)}</style></head>
+<body>
+<h1>Сломанные элементы</h1>
+<button id="dead">Мёртвая кнопка</button>
+<button id="fine" onclick="this.textContent='Готово'">Рабочая кнопка</button>
+<button id="aria" aria-disabled="true" onclick="this.textContent='Сработала'">Отключена через aria</button>
+<div class="fake">Похоже на кнопку, но не кнопка</div>
+<a href="#nowhere">Битый якорь</a>
+<a href="#">Заглушка</a>
+<form novalidate onsubmit="event.preventDefault(); fetch('/api', {method: 'POST'})">
+  <input name="email" required aria-label="Почта">
+  <button type="submit" id="sub">Отправить форму</button>
+</form>
+<button id="dbl" onclick="fetch('/pay', {method: 'POST'})">Оплатить</button>
+<div style="position:relative;height:60px"><button id="covered" onclick="this.textContent='Готово'">Перекрытая кнопка</button>
+<div style="position:absolute;inset:0;background:transparent"></div></div>
+</body></html>

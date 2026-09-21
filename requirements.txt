@@ -1,0 +1,5 @@
+fastmcp>=4.0
+playwright>=1.63
+httpx>=0.28
+pillow>=12.0
+pytest>=9.0

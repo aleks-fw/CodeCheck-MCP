@@ -1,0 +1,12 @@
+# окружение и тяжёлые артефакты
+.venv/
+browsers/
+.pipcache/
+.tmp/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# результаты запусков и служебные папки инструментов
+reports/
+.impeccable/

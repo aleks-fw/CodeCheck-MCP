@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>Баги шрифтов</title>
+<style>
+  body { margin: 0; padding: 16px; color: #222; background: #fff; font-family: Arial, sans-serif; }
+  .serif { font-family: Georgia, serif; }
+  .mono { font-family: "Courier New", monospace; }
+  .ghost { font-family: "NoSuchFontXYZ", cursive; }
+  h1 { font-size: 20px; } h2 { font-size: 30px; }
+</style></head>
+<body>
+<h1>Заголовок первого уровня</h1>
+<h2>Заголовок второго уровня крупнее первого</h2>
+<p>Основной текст страницы написан обычным шрифтом Arial, его довольно много, чтобы он считался основным.
+Ещё одно предложение, чтобы основной шрифт явно преобладал по объёму текста на странице.</p>
+<p class="serif">Абзац с засечками.</p>
+<p class="mono">Абзац моноширинным.</p>
+<p class="ghost">Шрифт, которого нет.</p>
+</body></html>

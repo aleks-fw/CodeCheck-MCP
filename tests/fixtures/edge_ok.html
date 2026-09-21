@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>Пограничные случаи без багов</title>
+<style>
+  body { margin: 0; font-family: Arial, sans-serif; color: #222; background: #fff; }
+  h1, h2 { font-family: Georgia, serif; }
+  h1 { font-size: 32px; } h2 { font-size: 24px; }
+  /* прозрачная шапка поверх тёмного фона: белый текст на самом деле контрастный */
+  .hero { background: linear-gradient(#10261a, #1d4a30); color: #fff; padding: 12px 16px 40px; }
+  nav a { color: #fff; display: inline-block; min-width: 48px; min-height: 48px; padding: 12px; }
+  /* плотная стопка: звёзды над числом, рамки строк касаются, но буквы не пересекаются */
+  .rate { display: inline-block; text-align: center; background: #fff; color: #222; padding: 8px 12px; margin-top: 16px; }
+  .stars { display: block; font-size: 12px; line-height: 1; color: #b57a2a; }
+  .num { display: block; font-size: 40px; line-height: 0.9; font-weight: 700; }
+  a.btn { display: inline-block; width: 44px; height: 44px; line-height: 44px; text-align: center;
+          background: #06623b; color: #fff; margin: 16px; }
+</style></head>
+<body>
+<div class="hero">
+  <nav><a href="#a">Меню</a><a href="#b">Отзывы</a></nav>
+  <h1>Кафе «Гости»</h1>
+  <div class="rate"><span class="stars" aria-hidden="true">★★★★★</span><span class="num">5,0</span></div>
+</div>
+<main style="padding:16px">
+  <h2 id="a">Меню</h2>
+  <p>Основной текст страницы набран обычным шрифтом, его много, чтобы он считался основным на странице.</p>
+  <h2 id="b">Отзывы</h2>
+  <p>Ещё один абзац основного текста, чтобы объём был заметно больше, чем у заголовков страницы.</p>
+  <a class="btn" href="#a">↑</a>
+</main>
+</body></html>

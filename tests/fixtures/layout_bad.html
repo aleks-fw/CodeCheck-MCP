@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Баги вёрстки</title>
+<style>
+  body { margin: 0; font-family: Arial, sans-serif; color: #222; background: #fff; }
+  .a { position: absolute; top: 40px; left: 20px; font-size: 24px; }
+  .b { position: absolute; top: 48px; left: 30px; font-size: 24px; }
+  .wide { width: 900px; background: #eee; margin-top: 120px; }
+  .clip { width: 80px; overflow: hidden; white-space: nowrap; margin-top: 20px; }
+  .faint { color: #ccc; background: #fff; margin-top: 20px; font-size: 16px; }
+</style></head>
+<body>
+<div class="a">Первый заголовок акции</div>
+<div class="b">Второй заголовок скидки</div>
+<div class="wide">Очень широкий блок, из-за которого появляется горизонтальный скролл на телефоне</div>
+<div class="clip">Длинный текст, который не помещается в узкий контейнер</div>
+<p class="faint">Едва заметный светло-серый текст на белом фоне</p>
+</body></html>
