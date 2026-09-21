@@ -93,14 +93,6 @@ server is started).
 Reports are written to `~/codecheck-reports/<date-time>/report.md`. Change the folder with the
 `CODECHECK_REPORTS_DIR` environment variable.
 
-## What it does not do
-
-- It does not judge whether photos match their captions: only measurable things are checked.
-- It does not test server-side logic, and it cannot find click handlers on elements without `cursor: pointer`.
-- Security headers are checked only for sites opened by URL (a local folder has none to check).
-- False positives are possible, especially for text contrast over images. Check the screenshots in the report.
-- On a large site `full_qa` takes several minutes: every button is tested on a fresh page load.
-
 ## Safety of the server itself
 
 - Read-only: the project under test is never modified.
