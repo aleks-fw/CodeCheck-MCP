@@ -1,82 +1,115 @@
-# CodeCheck MCP
+<p align="center">
+  <img src="assets/banner.svg" alt="CodeCheck MCP" width="100%">
+</p>
 
-MCP-сервер, который **сам проверяет готовый веб-проект**: открывает его в настоящем браузере (Playwright), жмёт
-кнопки, смотрит вёрстку на пяти ширинах экрана, шрифты, картинки и лёгкую безопасность. Результат — сводка и
-`report.md` со скриншотами, где проблемные места обведены красным.
+<h1 align="center">CodeCheck MCP</h1>
 
-Проверялось на Windows и Python 3.14. Другие ОС и версии Python не проверялись.
+<p align="center">
+  <a href="#installation">Install</a> ·
+  <a href="#tools">Tools</a> ·
+  <a href="llms-install.md">For AI agents</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a> ·
+  <a href="SECURITY.md">Security</a>
+</p>
 
-## Установка
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/python-3.10%2B-3776ab" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/MCP-server-8a2be2" alt="MCP server">
+  <a href="README.md"><img src="https://img.shields.io/badge/lang-English-0d9488" alt="English"></a>
+  <a href="README.ru.md"><img src="https://img.shields.io/badge/lang-%D0%A0%D1%83%D1%81%D1%81%D0%BA%D0%B8%D0%B9-d64545" alt="Русский"></a>
+</p>
 
-Нужны Python 3.10+ и интернет (Chromium весит около 150 МБ).
+An MCP server that **tests a finished web project by itself**: it opens the site in a real browser (Playwright),
+clicks the buttons, looks at the layout at five screen widths, checks fonts, images and basic security, and hands
+your AI agent a summary plus a `report.md` with screenshots where every problem is outlined in red.
+
+Tested on Windows and Python 3.14. Other operating systems and Python versions have not been tested.
+
+| | |
+|---|---|
+| **A real browser** | Chromium via Playwright: real clicks, real layout, real fonts. Nothing is guessed from the source code. |
+| **Finds what users see** | Dead buttons, overlapping or clipped text, horizontal scroll, low contrast, broken images, mismatched fonts. |
+| **Evidence, not opinions** | Each finding comes with a screenshot and a CSS selector. Only measurable rules, no "looks ugly" verdicts. |
+| **Light security pass** | Secrets in files and git history, `.env` in git, missing security headers, insecure cookies. |
+| **Safe by design** | Read-only for your project, isolated browser context, external navigation blocked, secrets masked in reports. |
+
+## Installation
+
+You need Python 3.10+ and an internet connection (Chromium is about 150 MB).
 
 ```bash
-# 1. Создайте окружение и установите пакет прямо из GitHub
+# 1. Create an environment and install straight from GitHub
 python -m venv codecheck-env
 codecheck-env/Scripts/pip install git+https://github.com/aleks-fw/CodeCheck-MCP.git      # Windows
 # codecheck-env/bin/pip install git+https://github.com/aleks-fw/CodeCheck-MCP.git        # macOS / Linux
 
-# 2. Один раз скачайте браузер для Playwright
+# 2. Download the browser for Playwright (once)
 codecheck-env/Scripts/python -m playwright install chromium
 ```
 
-### Подключение к Claude Code
+### Connect to Claude Code
 
 ```bash
-claude mcp add --scope user codecheck -- "<путь>/codecheck-env/Scripts/codecheck-mcp"
+claude mcp add --scope user codecheck -- "<path>/codecheck-env/Scripts/codecheck-mcp"
 ```
 
-### Подключение к другим клиентам (Claude Desktop, Cursor и т. п.)
+### Connect to other clients (Claude Desktop, Cursor, ...)
 
 ```json
 {
   "mcpServers": {
     "codecheck": {
-      "command": "<путь>/codecheck-env/Scripts/codecheck-mcp"
+      "command": "<path>/codecheck-env/Scripts/codecheck-mcp"
     }
   }
 }
 ```
 
-`<путь>` — абсолютный путь к папке, где вы создали окружение. Перезапустите клиент, и в списке MCP появится `codecheck`.
+`<path>` is the absolute path to the folder where you created the environment. Restart the client and `codecheck`
+appears in its MCP list.
 
-### Если вы ИИ-агент
+### If you are an AI agent
 
-Установите по инструкции из [llms-install.md](llms-install.md).
+Install by following [llms-install.md](llms-install.md).
 
-## Использование
+## Usage
 
-Скажите агенту, например: «Прогони full_qa на `D:\мой-сайт`» или «Проверь test_layout для https://example.com на ширинах 375 и 1440».
-`target` — это URL или путь к папке/файлу проекта (для папки поднимается временный локальный сервер).
+Just tell your agent, for example: "Run full_qa on `D:\my-site`" or "Run test_layout on https://example.com at
+widths 375 and 1440". `target` is a URL or a path to a project folder or file (for a folder, a temporary local
+server is started).
 
-| Инструмент | Что проверяет |
+## Tools
+
+| Tool | What it checks |
 |---|---|
-| `full_qa(target, max_pages=10)` | Всё ниже сразу |
-| `test_interactions(target)` | Мёртвые кнопки; отключённые, что всё равно реагируют; «кликабельный» вид без реакции; перекрытые кнопки; форма уходит с пустыми обязательными полями; двойной клик шлёт запрос дважды; битые якоря и ссылки-заглушки |
-| `test_layout(target, widths=[...])` | На ширинах 320/375/768/1024/1440: наложение текста, обрезанный текст, горизонтальный скролл, контраст текста (в том числе на картинках), мелкие зоны нажатия |
-| `test_fonts(target)` | Число шрифтов, шрифты-«чужаки», незагрузившиеся веб-шрифты, разброс размеров, иерархия заголовков |
-| `test_images(target)` | Битые, растянутые, «мыльные», тяжёлые картинки, нет `alt` |
-| `quick_security(target)` | Секреты в файлах и истории git, `.env` в git, нет `.gitignore`; у сайтов по URL: CSP, HSTS, X-Frame-Options, nosniff, Referrer-Policy, HTTP, mixed content, флаги cookie |
+| `full_qa(target, max_pages=10)` | Everything below in one go |
+| `test_interactions(target)` | Dead buttons; disabled controls that still react; things that look clickable but do nothing; covered buttons; forms that submit with empty required fields; double click sending a request twice; broken anchors and placeholder links |
+| `test_layout(target, widths=[...])` | At 320/375/768/1024/1440 px: overlapping text, clipped text, horizontal page scroll, text contrast (including text on images), small tap targets |
+| `test_fonts(target)` | Number of font families, outlier fonts, web fonts that failed to load, font-size sprawl, heading hierarchy |
+| `test_images(target)` | Broken, stretched, blurry and heavy images, missing `alt` |
+| `quick_security(target)` | Secrets in files and git history, `.env` tracked by git, no `.gitignore`; for URLs: CSP, HSTS, X-Frame-Options, nosniff, Referrer-Policy, plain HTTP, mixed content, cookie flags |
 
-Отчёты пишутся в `~/codecheck-reports/<дата-время>/report.md` (папку можно сменить переменной `CODECHECK_REPORTS_DIR`).
+Reports are written to `~/codecheck-reports/<date-time>/report.md`. Change the folder with the
+`CODECHECK_REPORTS_DIR` environment variable.
 
-## Чего сервер не делает
+## What it does not do
 
-- Не оценивает, подходят ли фото к надписям: проверяется только измеримое.
-- Не проверяет серверную логику; не находит обработчики кликов у элементов без `cursor: pointer`.
-- Заголовки безопасности проверяет только у сайтов по URL (у `localhost` их нет смысла ждать).
-- Возможны ложные срабатывания, особенно в контрасте текста на картинках: смотрите скриншоты в отчёте.
-- На большом сайте `full_qa` идёт несколько минут: каждая кнопка проверяется на свежей загрузке страницы.
+- It does not judge whether photos match their captions: only measurable things are checked.
+- It does not test server-side logic, and it cannot find click handlers on elements without `cursor: pointer`.
+- Security headers are checked only for sites opened by URL (a local folder has none to check).
+- False positives are possible, especially for text contrast over images. Check the screenshots in the report.
+- On a large site `full_qa` takes several minutes: every button is tested on a fresh page load.
 
-## Безопасность самого сервера
+## Safety of the server itself
 
-- Только чтение: проверяемый проект не изменяется.
-- Клики выполняются в изолированном контексте браузера, без ваших cookies и сессий.
-- Переходы на внешние домены блокируются и записываются в отчёт; внешние подресурсы грузятся с таймаутом 5 секунд.
-- Секреты в отчёте маскируются (показаны первые 4 и последние 2 символа).
-- Проверяйте только свои проекты и сайты, на проверку которых у вас есть разрешение владельца.
+- Read-only: the project under test is never modified.
+- Clicks run in an isolated browser context, without your cookies or sessions.
+- Navigation to external domains is blocked and reported; external sub-resources load with a 5-second timeout.
+- Secrets are masked in reports (only the first 4 and last 2 characters are shown).
+- Test only your own projects, or sites you have the owner's permission to test.
 
-## Разработка и тесты
+## Development
 
 ```bash
 pip install -e ".[test]"
@@ -84,8 +117,9 @@ python -m playwright install chromium
 pytest tests -q
 ```
 
-Тесты используют HTML-фикстуры с заведомыми багами, «чистые» страницы и регрессии, найденные на реальном сайте.
+The tests use HTML fixtures with deliberate bugs, "clean" pages, and regressions found on a real site.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Лицензия
+## License
 
-MIT, см. [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).
