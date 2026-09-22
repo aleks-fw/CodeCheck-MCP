@@ -71,7 +71,9 @@ LAYOUT_JS = """(opts) => {
       if (r.width >= opts.min && r.height >= opts.min) continue;
       if (cs.display === 'inline' && el.parentElement &&
           el.parentElement.textContent.trim().length > el.textContent.trim().length) continue;
-      out.small.push({sel: __ccSelector(el), w: Math.round(r.width), h: Math.round(r.height),
+      // вниз до 0.1 px: округление 23.6 до 24 давало в отчёте «24×24 меньше 24×24»
+      const down = (v) => Math.floor(v * 10) / 10;
+      out.small.push({sel: __ccSelector(el), w: down(r.width), h: down(r.height),
         tag: el.tagName.toLowerCase(), text: (el.innerText || el.value || el.getAttribute('aria-label') || '').trim().slice(0, 30)});
     }
   }

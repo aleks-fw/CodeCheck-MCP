@@ -171,3 +171,18 @@ def test_performance(result):
     assert r["performance/large-css"].url.endswith("/big.css") and r["performance/large-css"].severity == "notice"
     # на лёгких страницах метрик производительности нет
     assert on(result, "/clean.html", "performance/") == [] and on(result, "/layout.html", "performance/") == []
+
+
+def test_tap_target_size_is_not_rounded_up(tmp_path):
+    """Регрессия с сайта кафе: ссылка высотой 23.6 px выводилась как «149×24 px, меньше 24×24»."""
+    (tmp_path / "index.html").write_text(
+        '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>t</title>'
+        '<meta name="viewport" content="width=device-width, initial-scale=1"><style>'
+        'a { display: inline-block; width: 148px; } .short { height: 23.65px; } .ok { height: 24px; }'
+        '</style></head><body><a class="short" href="#a">Short</a><br><a class="ok" href="#b">Exactly 24</a>'
+        '</body></html>', encoding="utf-8")
+    res = audit(str(tmp_path), viewports=[375], checks=["layout"], output_dir=str(tmp_path / "out"))
+    small = [f for f in res.findings if f.rule == "layout/small-tap-target"]
+    assert [f.selector for f in small] == [".short"], [f.to_dict() for f in small]
+    assert small[0].evidence == {"width": 148, "height": 23.6}  # 23.65 px в Chromium = 23.640625
+    assert "148×23.6 px" in small[0].message
