@@ -121,7 +121,7 @@ def audit(target: str, max_pages: int = T.DEFAULT_MAX_PAGES, viewports: list[int
     with open_target(target) as start_url, sync_playwright() as pw:
         browser = launch_chromium(pw)
         try:
-            site = Site(start_url, list(critical_selectors or []))
+            site = Site(start_url, list(critical_selectors or []), [m.CATEGORY for m in modules])
             queue, seen = [start_url], set()
             while queue and len(pages) < max_pages:
                 url = queue.pop(0)

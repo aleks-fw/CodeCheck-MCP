@@ -24,6 +24,7 @@ FOCUS_MIN_CHANGED_PIXELS = 4      # столько пикселей должно
 # layout
 TAP_TARGET_MIN_PX = 24
 TAP_TARGET_VIEWPORT = 375
+MAX_SMALL_TARGETS = 20          # не больше стольких мелких зон нажатия на страницу
 
 # performance
 LOAD_WARNING_MS = 3000

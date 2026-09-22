@@ -11,10 +11,11 @@ from __future__ import annotations
 
 from types import ModuleType
 
-from . import accessibility, console, images, network, seo
+from . import accessibility, console, fonts, images, layout, network, performance, seo
 
+# performance сразу после network: до прокрутки и нажатий, которые останавливают замер LCP;
 # accessibility последней: она нажимает Tab и меняет фокус
-REGISTRY: list[ModuleType] = [network, console, seo, images, accessibility]
+REGISTRY: list[ModuleType] = [network, performance, console, seo, fonts, images, layout, accessibility]
 
 
 def recommendations(modules: list[ModuleType]) -> dict[str, str]:

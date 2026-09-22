@@ -81,12 +81,16 @@ def run(page, ctx) -> list[Finding]:
                     add("network/api-4xx", "warning", f"API request returned HTTP {status}",
                         f"{req.method} {url} answered HTTP {status} on {ctx.path}.")
                 continue
+            if rtype == "font" and "fonts" in ctx.site.checks:  # сообщит проверка fonts, с именем шрифта
+                continue
             if rtype in _FAILED_ASSET:
                 rule, sev, title = _FAILED_ASSET[rtype]
                 add(rule, sev, title, f"{url} answered HTTP {status} on {ctx.path}.")
                 continue
         elif rec["state"] == "failed" and status is None:
             if "ERR_ABORTED" in (error or ""):  # запрос отменила сама страница (навигация, abort())
+                continue
+            if rtype == "font" and "fonts" in ctx.site.checks:
                 continue
             if rtype in _FAILED_ASSET:
                 rule, sev, title = _FAILED_ASSET[rtype]
