@@ -91,6 +91,8 @@ class _Collector:
                 seen = set((old.evidence or {}).get("viewports", [old.viewport])) | {f.viewport}
                 old.evidence = {**(old.evidence or {}), "viewports": sorted(seen)}
             if SEVERITIES.index(f.severity) >= SEVERITIES.index(old.severity):
+                if not old.selector and f.selector:  # другая проверка знает элемент: отпечаток старый, селектор новый
+                    old.selector = f.selector
                 return
             self.shots.pop(key, None)  # более серьёзная версия той же проблемы заменяет старую
         self.found[key] = f

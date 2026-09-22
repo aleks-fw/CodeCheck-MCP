@@ -42,7 +42,7 @@ class Finding:
 
     @property
     def dedupe_key(self) -> str:
-        return dedupe_key(self.rule, self.page, self.target)
+        return dedupe_key(self.rule, self.page, self.target, self.url)
 
     @property
     def target(self) -> str:

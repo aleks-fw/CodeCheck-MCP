@@ -4,9 +4,15 @@ from __future__ import annotations
 import hashlib
 import re
 
-# одно и то же наблюдение, найденное разными проверками (например, axe и SEO), сводится к одному правилу;
-# заполняется в фазах с пересекающимися проверками
-ALIASES: dict[str, str] = {}
+# одно и то же наблюдение, найденное разными проверками, сводится к одному правилу
+ALIASES: dict[str, str] = {
+    "accessibility/image-alt": "images/missing-alt",
+    "accessibility/html-has-lang": "seo/missing-lang",
+    "accessibility/document-title": "seo/missing-title",
+    "images/broken": "network/image-failed",
+}
+# для этих правил одна и та же проблема узнаётся по URL ресурса, а не по селектору элемента
+URL_KEYED = {"network/image-failed"}
 
 
 # у локальной папки порт сервера случайный при каждом запуске: в отпечаток он не входит
@@ -19,6 +25,7 @@ def fingerprint(rule: str, page: str, target: str | None) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
-def dedupe_key(rule: str, page: str, target: str | None) -> str:
+def dedupe_key(rule: str, page: str, target: str | None, url: str | None = None) -> str:
     """Ключ для дедупликации: как fingerprint, но с учётом синонимов правил."""
-    return fingerprint(ALIASES.get(rule, rule), page, target)
+    canon = ALIASES.get(rule, rule)
+    return fingerprint(canon, page, url if canon in URL_KEYED and url else target)

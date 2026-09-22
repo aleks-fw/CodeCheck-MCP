@@ -16,6 +16,11 @@ IMAGE_NOTICE_BYTES = 200 * 1024
 IMAGE_WARNING_BYTES = 1024 * 1024
 IMAGE_OVERSIZE_RATIO = 2.0
 
+# accessibility
+AXE_MAX_NODES_PER_RULE = 20       # не больше стольких элементов на одно правило axe на странице
+FOCUS_TAB_STOPS = 20              # сколько раз нажимать Tab
+FOCUS_MIN_CHANGED_PIXELS = 4      # столько пикселей должно измениться, чтобы фокус считался видимым
+
 # layout
 TAP_TARGET_MIN_PX = 24
 TAP_TARGET_VIEWPORT = 375

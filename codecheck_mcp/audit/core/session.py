@@ -24,6 +24,7 @@ class Site:
     """Общее на весь прогон: origin, стартовый URL, проверки «один раз на сайт»."""
     start_url: str
     critical_selectors: list[str] = field(default_factory=list)
+    cache: dict[str, Any] = field(default_factory=dict)   # результаты запросов «один раз на сайт»
     _once: set[str] = field(default_factory=set)
 
     @property

@@ -11,9 +11,10 @@ from __future__ import annotations
 
 from types import ModuleType
 
-from . import console, network
+from . import accessibility, console, images, network, seo
 
-REGISTRY: list[ModuleType] = [network, console]
+# accessibility последней: она нажимает Tab и меняет фокус
+REGISTRY: list[ModuleType] = [network, console, seo, images, accessibility]
 
 
 def recommendations(modules: list[ModuleType]) -> dict[str, str]:
