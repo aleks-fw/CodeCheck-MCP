@@ -14,6 +14,12 @@ CLICKS = HEAD.format("Clicks") + """
 <button id="toggle" onclick="document.getElementById('out').textContent = 'changed'">Toggle</button>
 <button id="fetcher" onclick="fetch('/api/ok')">Load data</button>
 <button id="nav" onclick="location.href = 'other.html'">Go</button>
+<button id="place-order" onclick="fetch('/api/order', {method: 'POST'})">Place order</button>
+<button id="wishlist" onclick="fetch('/api/missing-endpoint')">Add to wishlist</button>
+<button id="profile" onclick="fetch('/api/me')">My profile</button>
+<form onsubmit="event.preventDefault(); fetch('/api/subscribe', {method: 'POST'})">
+  <button id="subscribe">Subscribe</button>
+</form>
 <button id="late-nav" onclick="fetch('/api/ok'); setTimeout(() => { location.href = 'other.html'; }, 300)">Save and go</button>
 <a href="#" id="dead-link">Dead link</a>
 <a href="javascript:void(0)" id="js-link">JS link</a>
@@ -36,6 +42,10 @@ CLEAN = HEAD.format("Clean") + """<p id="out"></p>
 <script src="app.js"></script></body></html>"""
 
 
+API_GET = {"/api/ok": 200, "/api/me": 401}                     # /api/missing-endpoint: обычный 404
+API_POST = {"/api/order": 500, "/api/subscribe": 422}
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
         if self.path.endswith(".html") or self.path == "/":
@@ -43,14 +53,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Set-Cookie", c)
         super().end_headers()
 
+    def _json(self, status):
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", "2")
+        self.end_headers()
+        self.wfile.write(b"{}")
+
     def do_GET(self):
-        if self.path == "/api/ok":
-            self.send_response(200)
-            self.send_header("Content-Length", "2")
-            self.end_headers()
-            self.wfile.write(b"{}")
-            return
+        if self.path in API_GET:
+            return self._json(API_GET[self.path])
         super().do_GET()
+
+    def do_POST(self):
+        self._json(API_POST.get(self.path, 404))
 
     def log_message(self, *a):
         pass
@@ -94,7 +110,8 @@ def test_run_ok(served):
 
 def test_dead_controls_found_and_working_ones_not(served):
     f = on(served, "/clicks.html", "interaction/")
-    assert set(f) == {"#dead", "#dead-link", "#js-link", ".checkout", "#covered"}, sorted(f)
+    assert set(f) == {"#dead", "#dead-link", "#js-link", ".checkout", "#covered", "#place-order", "#wishlist"}, \
+        sorted(f)
     dead = f["#dead"]
     assert dead.rule == "interaction/no-effect" and dead.severity == "warning"
     assert dead.details == ("Clicking #dead on /clicks.html produced no navigation, URL change, network request "
@@ -120,6 +137,20 @@ def test_unchecked_critical_selectors_are_reported(served):
                                    "(/index.html, /clicks.html, /clean.html), so this key action was never clicked.")
     assert "`interaction/critical-not-checked` on /index.html: Critical selector #order was not checked" \
         in served.summary_text()
+
+
+def test_click_that_sends_a_failing_request(served):
+    f = on(served, "/clicks.html", "interaction/")
+    order = f["#place-order"]
+    assert order.rule == "interaction/action-request-failed" and order.severity == "critical"  # 5xx
+    assert order.url.endswith("/api/order")
+    assert order.evidence["requests"] == [{"method": "POST", "url": order.url, "status": 500, "resourceType": "fetch"}]
+    assert order.message == "Clicking #place-order sends POST /api/order, which answers HTTP 500"
+    wish = f["#wishlist"]
+    assert wish.rule == "interaction/action-request-failed" and wish.severity == "warning"  # 4xx
+    assert wish.evidence["requests"][0]["status"] == 404
+    # 401 (вход сброшен перезагрузкой) и 4xx от пустой формы находками не считаются
+    assert "#profile" not in f and "#subscribe" not in f
 
 
 def test_clean_page_has_no_interaction_findings(served):

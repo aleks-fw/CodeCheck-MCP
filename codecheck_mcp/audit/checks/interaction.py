@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 import time
-from urllib.parse import urldefrag
+from urllib.parse import urldefrag, urlparse
 
 from ...browser import goto
 from .. import thresholds as T
@@ -17,6 +17,9 @@ RECOMMENDATIONS = {
                              "the element a link with a real href; if it is decorative, make it look non-clickable.",
     "interaction/not-clickable": "Another element covers this control or it is outside the viewport: fix the "
                                  "z-index / overlay, or the position so the control can be clicked.",
+    "interaction/action-request-failed": "The click works in the page but the request it sends fails: fix the "
+                                         "endpoint in evidence (server logs for 5xx, URL / payload for 4xx) and "
+                                         "show the user an error state when it fails.",
     "interaction/critical-not-checked": "Check the selector against the page markup (it must match a visible, "
                                         "enabled element on a crawled page), or make the key action reachable "
                                         "without prior steps so it can be clicked.",
@@ -52,6 +55,7 @@ COLLECT_JS = """(given) => {
   return [...crit, ...rest].map((el, i) => {
     el.setAttribute('data-cc-i', i);
     return {i, sel: __ccSelector(el), tag: el.tagName.toLowerCase(), critical: matchesCritical(el),
+      inForm: !!el.closest('form'),
       hits: critical.filter(c => { try { return el.matches(c); } catch (e) { return false; } }),
       label: [el.innerText, el.value, el.getAttribute('aria-label'), el.id, el.className && String(el.className)]
              .filter(Boolean).join(' ').replace(/\\s+/g, ' ').trim().slice(0, 80)};
@@ -90,12 +94,49 @@ def _click_error(text: str) -> str:
     return (lines[0] + (f" Reason: {reason}" if reason else ""))[:300] if lines else "click failed"
 
 
-def _probe(page, item: dict) -> tuple[str | None, str]:
-    """Кликает элемент на свежей странице. Возвращает (что произошло или None, ошибка клика)."""
-    ev = {"requests": 0, "popup": 0, "dialog": 0, "download": 0}
+API_TYPES = ("fetch", "xhr", "document")
 
-    def on_request(_r):
+
+def _failed_requests(page, sent: dict, blocked: set[str]) -> list[dict]:
+    """Ждёт ответы на запросы, вызванные кликом, и возвращает те, что закончились ошибкой."""
+    deadline = time.monotonic() + T.CLICK_REQUEST_WAIT_MS / 1000
+    while any(not r["done"] for r in sent.values()) and time.monotonic() < deadline:
+        page.wait_for_timeout(100)
+    out = []
+    for req, r in sent.items():
+        if req.url in blocked or not req.url.startswith(("http://", "https://")):
+            continue  # переход на чужой домен прервали мы сами
+        if r["status"] is not None and r["status"] >= 400:
+            out.append({"method": req.method, "url": req.url, "status": r["status"],
+                        "resourceType": req.resource_type})
+        elif r["error"] and "ERR_ABORTED" not in r["error"]:  # ERR_ABORTED: запрос отменила сама страница
+            out.append({"method": req.method, "url": req.url, "error": r["error"],
+                        "resourceType": req.resource_type})
+    return out
+
+
+def _probe(page, item: dict, blocked: set[str] | None = None) -> tuple[str | None, str, list[dict]]:
+    """Кликает элемент на свежей странице. Возвращает (что произошло или None, ошибка клика,
+    запросы от этого клика, закончившиеся ошибкой)."""
+    ev = {"requests": 0, "popup": 0, "dialog": 0, "download": 0}
+    sent: dict = {}   # запросы API и документов, вызванные кликом: Request -> {status, error, done}
+
+    def on_request(r):
         ev["requests"] += 1
+        if r.resource_type in API_TYPES:
+            sent[r] = {"status": None, "error": None, "done": False}
+
+    def on_response(resp):
+        if resp.request in sent:
+            sent[resp.request]["status"] = resp.status
+
+    def on_finished(r):
+        if r in sent:
+            sent[r]["done"] = True
+
+    def on_failed(r):
+        if r in sent:
+            sent[r].update(done=True, error=r.failure)
 
     def on_popup(p):
         ev["popup"] += 1
@@ -113,7 +154,8 @@ def _probe(page, item: dict) -> tuple[str | None, str]:
 
     # framenavigated не слушаем: клик по href="#" даёт его без всякого эффекта; настоящий переход виден
     # по смене адреса и по запросу документа
-    handlers = {"request": on_request, "popup": on_popup, "dialog": on_dialog, "download": on_download}
+    handlers = {"request": on_request, "popup": on_popup, "dialog": on_dialog, "download": on_download,
+                "response": on_response, "requestfinished": on_finished, "requestfailed": on_failed}
     loc = page.locator(f'[data-cc-i="{item["i"]}"]')
     loc.scroll_into_view_if_needed(timeout=2000)
     before = page.url
@@ -124,30 +166,36 @@ def _probe(page, item: dict) -> tuple[str | None, str]:
         try:
             loc.click(timeout=3000, no_wait_after=True)
         except Exception as e:
-            return None, _click_error(str(e))
-        deadline = time.monotonic() + T.CLICK_OBSERVE_MS / 1000
-        while True:
-            if urldefrag(page.url)[0] != urldefrag(before)[0]:
-                return "navigation", ""
-            for k in ("requests", "popup", "dialog", "download"):
-                if ev[k]:
-                    return k, ""
-            try:
-                st = page.evaluate(STATE_JS)
-            except Exception:  # контекст страницы уничтожен переходом
-                return "navigation", ""
-            if st is None:
-                return "navigation", ""
-            if st["hash"]:
-                return "url change", ""
-            if st["mut"] or st["invalid"] or st["scrolled"]:
-                return "dom change" if st["mut"] else ("form validation" if st["invalid"] else "scroll"), ""
-            if time.monotonic() >= deadline:
-                return None, ""
-            page.wait_for_timeout(100)
+            return None, _click_error(str(e)), []
+        effect = _observe(page, ev, before)
+        return effect, "", _failed_requests(page, sent, blocked or set()) if effect else []
     finally:
         for name, h in handlers.items():
             page.remove_listener(name, h)
+
+
+def _observe(page, ev: dict, before: str) -> str | None:
+    """До CLICK_OBSERVE_MS ждёт любой реакции на клик; возвращает её вид или None."""
+    deadline = time.monotonic() + T.CLICK_OBSERVE_MS / 1000
+    while True:
+        if urldefrag(page.url)[0] != urldefrag(before)[0]:
+            return "navigation"
+        for k in ("requests", "popup", "dialog", "download"):
+            if ev[k]:
+                return k
+        try:
+            st = page.evaluate(STATE_JS)
+        except Exception:  # контекст страницы уничтожен переходом
+            return "navigation"
+        if st is None:
+            return "navigation"
+        if st["hash"]:
+            return "url change"
+        if st["mut"] or st["invalid"] or st["scrolled"]:
+            return "dom change" if st["mut"] else ("form validation" if st["invalid"] else "scroll")
+        if time.monotonic() >= deadline:
+            return None
+        page.wait_for_timeout(100)
 
 
 def _reload(page, url: str, attempts: int = 3) -> None:
@@ -192,12 +240,15 @@ def run(page, ctx) -> list[Finding]:
                 continue  # после перезагрузки страница другая: этот элемент не проверить надёжно
         for c in item["hits"]:
             state(c, "checked")
-        effect, error = _probe(page, item)
-        if effect:
-            continue
-        sev = "critical" if item["critical"] else "warning"
+        effect, error, failures = _probe(page, item, ctx.events.blocked)
         state_note = (" This control may depend on app state (cart, login): the page was reloaded before the "
                       "click, so the state may have been reset." if STATEFUL.search(item["label"]) else "")
+        if effect:
+            failed = _request_failure(ctx, item, failures, state_note)
+            if failed:
+                out.append(failed)
+            continue
+        sev = "critical" if item["critical"] else "warning"
         if error:
             out.append(Finding(
                 severity=sev, category=CATEGORY, rule="interaction/not-clickable", page=ctx.path,
@@ -215,6 +266,31 @@ def run(page, ctx) -> list[Finding]:
                                       "download", "scroll", "form validation"]}))
     _reload(page, ctx.url)  # вернуть страницу в исходное состояние для скриншотов
     return out
+
+
+def _request_failure(ctx, item: dict, failures: list[dict], state_note: str) -> Finding | None:
+    """Клик сработал, но вызванный им запрос закончился ошибкой. 401/403 и 4xx от пустой формы не считаем:
+    вход сброшен перезагрузкой, а форму мы отправляем без данных."""
+    real = [x for x in failures
+            if not (x.get("status") in (401, 403) or (item["inForm"] and 400 <= x.get("status", 0) < 500))]
+    if not real:
+        return None
+    first = real[0]
+    server = any(x.get("status", 0) >= 500 for x in real)
+    what = f"HTTP {first['status']}" if "status" in first else f"no response ({first['error']})"
+    more = f"; {len(real) - 1} more request(s) from this click failed too" if len(real) > 1 else ""
+    return Finding(
+        severity="critical" if item["critical"] or server else "warning", category=CATEGORY,
+        rule="interaction/action-request-failed", page=ctx.path, selector=item["sel"], url=first["url"],
+        message=f"Clicking {item['sel']} sends {first['method']} {_short(first['url'])}, which answers {what}",
+        details=f"Clicking {item['sel']} on {ctx.path} sent {first['method']} {first['url']}, which answered "
+                f"{what}{more}. The click itself works; the action it triggers does not.{state_note}",
+        evidence={"requests": real[:5], "critical": item["critical"]})
+
+
+def _short(url: str) -> str:
+    u = urlparse(url)
+    return (u.path or "/") + (f"?{u.query}" if u.query else "")
 
 
 def _critical_state(ctx):

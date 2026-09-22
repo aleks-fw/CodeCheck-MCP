@@ -40,3 +40,4 @@ CSS_FILE_NOTICE_BYTES = 150 * 1024
 # interactions
 MAX_CLICKS_PER_PAGE = 20
 CLICK_OBSERVE_MS = 2000
+CLICK_REQUEST_WAIT_MS = 5000   # сколько ждать ответов на запросы, отправленные кликом
