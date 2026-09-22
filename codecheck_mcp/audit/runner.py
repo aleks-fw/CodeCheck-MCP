@@ -121,7 +121,8 @@ def audit(target: str, max_pages: int = T.DEFAULT_MAX_PAGES, viewports: list[int
     with open_target(target) as start_url, sync_playwright() as pw:
         browser = launch_chromium(pw)
         try:
-            site = Site(start_url, list(critical_selectors or []), [m.CATEGORY for m in modules])
+            site = Site(start_url, list(critical_selectors or []), [m.CATEGORY for m in modules],
+                        local_folder=not target.startswith(("http://", "https://")))
             queue, seen = [start_url], set()
             while queue and len(pages) < max_pages:
                 url = queue.pop(0)
@@ -185,6 +186,8 @@ def _audit_page(browser, site: Site, url: str, sizes, modules, col: _Collector, 
                     for f in m.run(page, ctx):
                         col.add(f, page)
                 except Exception as e:  # падение одной проверки не роняет прогон, но попадает в отчёт
+                    for f in getattr(e, "findings", []):  # то, что проверка успела найти до сбоя
+                        col.add(f, page)
                     errors.append({"check": m.CATEGORY, "page": ctx.path, "viewport": ctx.viewport,
                                    "error": f"{type(e).__name__}: {str(e)[:200]}"})
         finally:

@@ -63,15 +63,16 @@ def open_target(target: str):
         srv.server_close()
 
 
-def external_route_handler(origin: str, on_blocked=None):
-    """Обработчик маршрутов: переходы на чужие домены блокируются, чужие подресурсы грузятся с таймаутом."""
+def external_route_handler(origin: str, on_blocked=None, proxy_external: bool = True):
+    """Обработчик маршрутов: переходы на чужие домены блокируются, чужие подресурсы грузятся с таймаутом.
+    proxy_external=False: чужие подресурсы идут напрямую (без задержки прокси, важно для замеров скорости)."""
     def handle_route(route, request):
         external = urlparse(request.url).netloc not in (origin, "")
         if external and request.is_navigation_request():
             if on_blocked:
                 on_blocked(request.url)
             route.abort()
-        elif external and request.url.startswith(("http://", "https://")):
+        elif external and proxy_external and request.url.startswith(("http://", "https://")):
             # внешний подресурс (шрифт, скрипт, картинка): подвисший сервер не должен вешать всю проверку
             try:
                 route.fulfill(response=route.fetch(timeout=EXTERNAL_TIMEOUT_MS))

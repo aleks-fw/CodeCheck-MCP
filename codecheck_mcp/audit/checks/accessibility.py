@@ -61,9 +61,10 @@ FOCUSED_BOX_JS = """() => {
   if (r.width < 2 || r.height < 2) return null;
   const m = 6;  // outline и тень рисуются снаружи рамки элемента
   const x = Math.max(0, r.x - m), y = Math.max(0, r.y - m);
+  const width = Math.min(innerWidth, r.right + m) - x, height = Math.min(innerHeight, r.bottom + m) - y;
+  if (width < 2 || height < 2) return {skip: true};  // элемент вне экрана (например, внутри fixed-блока)
   return {sel: __ccSelector(el), tag: el.tagName.toLowerCase(),
-    text: (el.innerText || el.value || el.getAttribute('aria-label') || '').trim().slice(0, 40),
-    x, y, width: Math.min(innerWidth, r.right + m) - x, height: Math.min(innerHeight, r.bottom + m) - y};
+    text: (el.innerText || el.value || el.getAttribute('aria-label') || '').trim().slice(0, 40), x, y, width, height};
 }"""
 
 
@@ -116,7 +117,7 @@ def _focus(page, ctx) -> list[Finding]:
         for _ in range(T.FOCUS_TAB_STOPS):
             page.keyboard.press("Tab")
             box = page.evaluate(FOCUSED_BOX_JS)
-            if box is None:
+            if box is None or box.get("skip"):
                 continue
             if box["sel"] in seen:  # фокус пошёл по второму кругу
                 break
@@ -141,4 +142,21 @@ def _focus(page, ctx) -> list[Finding]:
 
 
 def run(page, ctx) -> list[Finding]:
-    return _axe(page, ctx) + _onclick(page, ctx) + _focus(page, ctx)
+    out: list[Finding] = []
+    failed = []
+    for part in (_axe, _onclick, _focus):  # сбой одной части не отменяет результаты остальных
+        try:
+            out += part(page, ctx)
+        except Exception as e:
+            failed.append(f"{part.__name__.strip('_')}: {type(e).__name__}: {str(e)[:150]}")
+    if failed:
+        raise PartialFailure(out, "; ".join(failed))
+    return out
+
+
+class PartialFailure(Exception):
+    """Часть проверки упала: найденное остальными частями сохраняется, ошибка идёт в Run errors."""
+
+    def __init__(self, findings: list[Finding], message: str) -> None:
+        super().__init__(message)
+        self.findings = findings

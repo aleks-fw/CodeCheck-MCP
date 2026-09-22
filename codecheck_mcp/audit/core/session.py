@@ -25,6 +25,7 @@ class Site:
     start_url: str
     critical_selectors: list[str] = field(default_factory=list)
     checks: list[str] = field(default_factory=list)       # выбранные категории
+    local_folder: bool = False                            # проект открыт из папки через наш временный сервер
     cache: dict[str, Any] = field(default_factory=dict)   # результаты запросов «один раз на сайт»
     _once: set[str] = field(default_factory=set)
 
@@ -112,7 +113,9 @@ def open_page(browser, site: Site, url: str, width: int, height: int):
     ev = Events()
     bctx = browser.new_context(viewport={"width": width, "height": height})
     bctx.set_default_timeout(PAGE_TIMEOUT_MS)
-    bctx.route("**/*", external_route_handler(urlparse(url).netloc, ev.blocked.add))
+    # чужие подресурсы напрямую: прокси через route.fetch искажает время загрузки; от зависаний защищают
+    # ограниченные по времени ожидания в goto и network
+    bctx.route("**/*", external_route_handler(urlparse(url).netloc, ev.blocked.add, proxy_external=False))
     page = bctx.new_page()
     page.add_init_script(SELECTOR_JS)
     page.add_init_script(REJECTIONS_JS)
