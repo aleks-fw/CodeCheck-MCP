@@ -15,7 +15,7 @@ from .. import __version__
 from .. import report as legacy_report
 from ..browser import goto, launch_chromium, open_target
 from . import thresholds as T
-from .checks import REGISTRY, recommendations
+from .checks import REGISTRY, interaction, recommendations
 from .core.crawler import page_key, same_origin_links
 from .core.finding import CATEGORIES, SEVERITIES, Finding
 from .core.screenshot import capture
@@ -139,6 +139,9 @@ def audit(target: str, max_pages: int = T.DEFAULT_MAX_PAGES, viewports: list[int
                     continue
                 pages.append(page_path(url))
                 queue += [u for u in links if page_key(u) not in seen]
+            if interaction in modules:
+                for f in interaction.unchecked_critical(site):  # находка на весь сайт: без скриншота
+                    col.found.setdefault(f.dedupe_key, f)
         finally:
             browser.close()
 

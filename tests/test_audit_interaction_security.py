@@ -20,6 +20,7 @@ CLICKS = HEAD.format("Clicks") + """
 <button id="del">Удалить аккаунт</button>
 <button id="off" disabled>Disabled</button>
 <button class="checkout">Checkout</button>
+<button id="hidden-key" style="display: none">Hidden key action</button>
 <form action="other.html"><input required name="q" aria-label="Query"><button id="send">Send</button></form>
 <button id="opener" onclick="window.open('other.html')">Open</button>
 <div style="position: relative; height: 60px">
@@ -74,7 +75,8 @@ def served(site, tmp_path_factory):
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
         return audit(f"http://127.0.0.1:{srv.server_address[1]}/index.html", max_pages=3, viewports=[1280],
-                     checks=["interaction", "security"], critical_selectors=[".checkout", "not a [valid selector"],
+                     checks=["interaction", "security"],
+                     critical_selectors=[".checkout", "not a [valid selector", "#order", "#hidden-key", "#del"],
                      output_dir=str(tmp_path_factory.mktemp("out")))
     finally:
         srv.shutdown()
@@ -105,6 +107,18 @@ def test_critical_selector_is_critical_with_state_note(served):
     assert c.severity == "critical" and c.evidence["critical"] is True
     assert "may depend on app state" in c.details
     assert "`interaction/no-effect` on /clicks.html: Clicking .checkout does nothing" in served.summary_text()
+
+
+def test_unchecked_critical_selectors_are_reported(served):
+    f = {x.selector: x for x in served.findings if x.rule == "interaction/critical-not-checked"}
+    assert set(f) == {"not a [valid selector", "#order", "#hidden-key", "#del"}, sorted(f)  # .checkout кликнут
+    assert {s: (x.severity, x.evidence["reason"]) for s, x in f.items()} == {
+        "#order": ("critical", "missing"), "#hidden-key": ("warning", "hidden"),
+        "#del": ("warning", "destructive"), "not a [valid selector": ("warning", "invalid")}
+    assert f["#order"].details == ("Critical selector #order matched no element on any of the 3 audited page(s) "
+                                   "(/index.html, /clicks.html, /clean.html), so this key action was never clicked.")
+    assert "`interaction/critical-not-checked` on /index.html: Critical selector #order was not checked" \
+        in served.summary_text()
 
 
 def test_clean_page_has_no_interaction_findings(served):
