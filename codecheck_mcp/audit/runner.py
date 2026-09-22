@@ -20,6 +20,7 @@ from .core.crawler import page_key, same_origin_links
 from .core.finding import CATEGORIES, SEVERITIES, Finding
 from .core.screenshot import capture
 from .core.session import PageContext, Site, open_page, page_path
+from .report import diff as diff_report
 from .report import json_report, markdown
 
 SHOT_SEVERITIES = ("critical", "warning")
@@ -47,6 +48,7 @@ class AuditResult:
     out_dir: Path
     data: dict[str, Any]
     findings: list[Finding]
+    diff: diff_report.Diff | None = None
 
     def summary_text(self) -> str:
         c = self.data["summary"]
@@ -58,6 +60,7 @@ class AuditResult:
         crit = [f for f in self.findings if f.severity == "critical"]
         if crit:
             lines += ["", "Critical:"] + [f"- {f.id} `{f.rule}` on {f.page}: {f.message}" for f in crit]
+        lines += [""] + diff_report.summary(self.diff)
         if self.data["errors"]:
             lines += ["", f"Run errors: {len(self.data['errors'])} check run(s) failed, see report.md."]
         lines += ["", f"Report: {self.out_dir / 'report.md'}",
@@ -114,6 +117,8 @@ def audit(target: str, max_pages: int = T.DEFAULT_MAX_PAGES, viewports: list[int
     shots_dir.mkdir(parents=True, exist_ok=True)
     for old in shots_dir.glob("CC-*.png"):  # скриншоты прошлого прогона больше не соответствуют ID
         old.unlink()
+    if (out / "current.json").exists():  # прошлый прогон становится базой для сравнения
+        (out / "current.json").replace(out / "previous.json")
 
     col = _Collector()
     errors: list[dict[str, str]] = []
@@ -154,10 +159,19 @@ def audit(target: str, max_pages: int = T.DEFAULT_MAX_PAGES, viewports: list[int
             "viewports": [f"{w}x{h}" for w, h in sorted(sizes)], "checks": [m.CATEGORY for m in modules],
             "errors": errors}
     data = json_report.build(meta, findings)
+    diff = None
+    if (out / "previous.json").exists():
+        try:
+            prev, prev_findings = json_report.load(out / "previous.json")
+            diff = diff_report.compare(prev, prev_findings, data, findings)
+            data["comparison"] = diff.to_dict()
+        except (ValueError, KeyError, TypeError) as e:  # испорченный previous.json не должен ронять прогон
+            errors.append({"check": "compare", "page": "-", "viewport": "-", "error": f"previous.json: {e}"})
     json_report.write(out / "current.json", data)
     recs = {**CRAWL_RECOMMENDATIONS, **recommendations(modules)}
-    (out / "report.md").write_text(markdown.render(data, findings, recs), encoding="utf-8")
-    return AuditResult(out, data, findings)
+    changes = diff_report.render(diff, target)
+    (out / "report.md").write_text(markdown.render(data, findings, recs, changes), encoding="utf-8")
+    return AuditResult(out, data, findings, diff)
 
 
 def _audit_page(browser, site: Site, url: str, sizes, modules, col: _Collector, errors) -> list[str] | None:

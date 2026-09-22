@@ -5,7 +5,8 @@ from fastmcp import Client
 
 from codecheck_mcp.server import mcp
 
-EXPECTED = {"full_qa", "test_interactions", "test_layout", "test_fonts", "test_images", "quick_security", "audit_project"}
+EXPECTED = {"full_qa", "test_interactions", "test_layout", "test_fonts", "test_images", "quick_security",
+            "audit_project", "compare_reports"}
 
 
 def call(name, args):

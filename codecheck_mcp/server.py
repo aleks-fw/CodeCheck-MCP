@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 
 from fastmcp import FastMCP
 
+from .audit.report import diff as diff_report
+from .audit.report import json_report
 from .audit.runner import audit
 from .browser import run
 from .checks.fonts import check_fonts
@@ -89,6 +92,21 @@ async def audit_project(url: str, maxPages: int = 10, viewports: list[int] | Non
     except Exception as e:
         return f"Audit failed: {type(e).__name__}: {str(e)[:300]}"
     return res.summary_text()
+
+
+@mcp.tool
+async def compare_reports(previous: str, current: str) -> str:
+    """Compare two audit_project JSON reports (paths to current.json / previous.json files) by fingerprint.
+    Returns Fixed, New, Unchanged and findings the newer run did not recheck."""
+    try:
+        prev, prev_findings = json_report.load(Path(previous).expanduser())
+        cur, cur_findings = json_report.load(Path(current).expanduser())
+    except FileNotFoundError as e:
+        return f"Error: file not found: {e.filename}"
+    except (ValueError, KeyError, TypeError) as e:
+        return f"Error: not an audit_project report: {type(e).__name__}: {str(e)[:200]}"
+    d = diff_report.compare(prev, prev_findings, cur, cur_findings)
+    return "\n".join(diff_report.render(d, cur.get("url", ""))).strip()
 
 
 def main() -> None:
