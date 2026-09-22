@@ -93,6 +93,7 @@ class Group:
     impact: int = 0
     impact_basis: dict[str, int] = field(default_factory=dict)
     id: str = ""
+    root_pages: list[str] = field(default_factory=list)   # страницы, где встретилась сама первопричина
 
     @property
     def pages(self) -> list[str]:
@@ -109,7 +110,7 @@ class Group:
         return f"{r.message} ({path})" if path and path not in r.message else r.message
 
     def root_cause(self) -> str:
-        spread = f" Seen on {len(self.pages)} pages." if len(self.pages) > 1 else ""
+        spread = f" Seen on {len(self.root_pages)} pages." if len(self.root_pages) > 1 else ""
         return " ".join(f"{self.root.details}{spread}".split())  # одной строкой: axe пишет многострочно
 
     def evidence(self) -> dict[str, list[Any]]:
@@ -163,10 +164,13 @@ def _links(clusters: list[_Cluster]) -> list[_Link]:
         path = api.key[1]
         for c in of("interaction/action-request-failed"):
             if c is not api and c.key[1] == path and api.rule != c.rule:
-                out.append(_Link(api, c, True, f"the click sends the same failing request {path}"))
+                out.append(_Link(api, c, True, f"the click sends a request to the same failing endpoint {path}"))
+        if api.rule == "interaction/action-request-failed":
+            continue  # консоль записана при загрузке, до кликов: запрос от клика не может её объяснить
         for c in of("console/error", "console/unhandled-rejection", "console/uncaught-exception"):
             same_page = [f for f in c.findings if f.page in api.pages]
-            if any(path in text(f) for f in same_page):
+            named = re.compile(re.escape(path) + r"(?![\w/.-])")  # /api/order, но не /api/orders
+            if any(named.search(text(f)) for f in same_page):
                 out.append(_Link(api, c, True, f"the error text mentions {path}"))
             elif any(_FETCHY.search(text(f)) for f in same_page):
                 out.append(_Link(api, c, False, f"same page as the failing request {path}, and the error is "
@@ -255,7 +259,7 @@ def build(findings: list[Finding], total_pages: int) -> list[Group]:
         root, path = top(c, {id(c)})
         g = groups.get(id(root))
         if g is None:
-            g = groups[id(root)] = Group(root=root.root, findings=[], related=[])
+            g = groups[id(root)] = Group(root=root.root, findings=[], related=[], root_pages=sorted(root.pages))
         g.findings += c.findings
         if c is not root:
             ok = all(x.confirmed for x in path)

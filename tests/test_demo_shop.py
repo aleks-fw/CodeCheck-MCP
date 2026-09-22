@@ -18,6 +18,8 @@ EXPECTED = {
     "/mobile.html": {"layout/horizontal-overflow"},
     "/buttons.html": {"interaction/no-effect"},
     "/notitle.html": {"seo/missing-title"},
+    "/checkout.html": {"network/api-5xx", "console/error", "interaction/action-request-failed"},
+    "/cart.html": {"interaction/action-request-failed"},
 }
 
 
@@ -30,7 +32,7 @@ def result(tmp_path_factory):
     srv.daemon_threads = True
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
-        return audit(f"http://127.0.0.1:{srv.server_address[1]}/", critical_selectors=["#checkout"],
+        return audit(f"http://127.0.0.1:{srv.server_address[1]}/", critical_selectors=["#checkout", "#place-order"],
                      output_dir=str(tmp_path_factory.mktemp("demo")))
     finally:
         srv.shutdown()
@@ -55,3 +57,12 @@ def test_demo_details(result):
     for f in result.findings:
         if f.severity != "notice":
             assert f.screenshot and (result.out_dir / f.screenshot).exists(), f.to_dict()
+
+
+def test_demo_top_group_is_the_order_api(result):
+    g = result.groups[0]
+    assert g.severity == "CRITICAL" and g.impact == 10 and g.confirmed
+    assert g.root.rule == "network/api-5xx" and g.root.url.endswith("/api/order")
+    assert g.pages == ["/cart.html", "/checkout.html"]
+    assert sorted(x.rule for x, _, _ in g.related) == ["console/error", "interaction/action-request-failed",
+                                                       "interaction/action-request-failed"]

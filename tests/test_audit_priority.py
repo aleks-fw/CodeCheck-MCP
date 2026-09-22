@@ -17,7 +17,8 @@ def by_root(groups):
 
 
 def test_task_example_checkout_api():
-    """POST /api/order отвечает 500: кнопки на двух страницах и ошибка в консоли — одна группа CRITICAL."""
+    """POST /api/order отвечает 500: кнопки на двух страницах — одна группа CRITICAL с подтверждённой причиной.
+    Ошибка консоли записана при загрузке, до клика, поэтому с запросом от клика не связывается."""
     order = "http://shop.test/api/order"
     click1 = f("interaction/action-request-failed", "/checkout", "critical", url=order, selector="#place-order",
                message="Clicking #place-order sends POST /api/order, which answers HTTP 500",
@@ -36,8 +37,8 @@ def test_task_example_checkout_api():
     assert g.severity == "CRITICAL" and g.category == "functionality"
     assert g.root is click1 and g.pages == ["/cart", "/checkout"]
     assert "POST http://shop.test/api/order, which answered HTTP 500" in g.root_cause()
-    assert [(x.id, ok) for x, ok, _ in g.related] == [(rejection.id, False)]  # связь выведена, не доказана
-    assert not g.confirmed                                                     # значит, Likely root cause
+    assert g.related == [] and g.confirmed                  # та же проблема на /cart, а не последствие
+    assert by_root(groups)["console/unhandled-rejection"].findings == [rejection]
     assert g.impact == 10 and g.impact_basis["key action (criticalSelectors)"] == 1
     assert g.evidence()["requests"] == ["POST http://shop.test/api/order → 500"]
     # ошибка консоли на другой странице — отдельная группа, canonical на трёх страницах — одна группа
@@ -50,7 +51,7 @@ def test_task_example_checkout_api():
     assert "## Prioritized Issues" in md
     assert "### 🔴 CRITICAL — Clicking #place-order sends POST /api/order, which answers HTTP 500" in md
     assert "- **Impact:** 10/10" in md and "- **Affected pages:** `/cart`, `/checkout`" in md
-    assert "- **Likely root cause:**" in md and "(likely: same page as the failing request /api/order" in md
+    assert "- **Root cause:** Clicking #place-order on /checkout sent POST http://shop.test/api/order" in md
     assert "- **Recommendation:** Fix the endpoint." in md
     assert "Same problem also on:** `/cart`" in md
 
@@ -118,3 +119,35 @@ def test_evidence_requests_can_be_a_count():
     many = f("performance/too-many-requests", "/", "notice", evidence={"requests": 101})
     (g,) = priority.build([many], total_pages=1)
     assert g.evidence()["requests"] == []
+
+
+def test_url_must_be_named_exactly():
+    api = f("network/api-5xx", "/", "critical", url="http://x.test/api/order")
+    err = f("console/error", "/", evidence={"text": "Loading /api/orders took long"})  # другой эндпоинт
+    (g, *_) = priority.build([api, err], total_pages=1)
+    assert [ok for _, ok, _ in g.related] == [False]  # только «likely»: текст про запрос, но URL не тот
+
+
+def test_console_errors_are_not_blamed_on_clicks():
+    """Консоль записана при загрузке страницы, клики идут позже: связь только с запросом при загрузке."""
+    url = "http://x.test/api/order"
+    load = f("network/api-5xx", "/checkout", "critical", url=url)
+    click = f("interaction/action-request-failed", "/checkout", "critical", url=url, selector="#place-order")
+    err = f("console/error", "/checkout", evidence={"text": "GET /api/order returned 500"})
+    (g,) = priority.build([click, err, load], total_pages=1)
+    reasons = {x.rule: why for x, _, why in g.related}
+    assert g.root is load and reasons["console/error"] == "the error text mentions /api/order"
+    only_click = priority.build([f("interaction/action-request-failed", "/", "critical", url=url, selector="#b"),
+                                 f("console/error", "/", evidence={"text": "GET /api/order returned 500"})], 1)
+    assert len(only_click) == 2  # без запроса при загрузке ошибка консоли остаётся отдельной группой
+
+
+def test_spread_counts_only_pages_of_the_root_cause():
+    url = "http://x.test/api/order"
+    load = f("network/api-5xx", "/checkout", "critical", url=url, details="GET /api/order answered 500.")
+    click = f("interaction/action-request-failed", "/cart", "critical", url=url, selector="#place-order")
+    (g,) = priority.build([load, click], total_pages=2)
+    assert g.pages == ["/cart", "/checkout"] and g.root_cause() == "GET /api/order answered 500."
+    same = [f("seo/missing-canonical", p, "notice", message="No canonical", details="No canonical.") for p in "ab"]
+    (s,) = priority.build(same, total_pages=2)
+    assert s.root_cause() == "No canonical. Seen on 2 pages."

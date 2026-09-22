@@ -21,7 +21,8 @@ Checks of `audit_project` live in `codecheck_mcp/audit/checks/`, one module per 
 and is registered in `REGISTRY` in `codecheck_mcp/audit/checks/__init__.py`. The page is already loaded; console and
 network events recorded since before the load are in `ctx.events`. Thresholds go to
 `codecheck_mcp/audit/thresholds.py`. If another check can find the same problem, add the rule to `ALIASES` in
-`codecheck_mcp/audit/core/fingerprint.py` so it is reported once. Run `ruff check codecheck_mcp tests` and
+`codecheck_mcp/audit/core/fingerprint.py` so it is reported once. If a new rule can cause or explain other findings, add the link
+to `_links` in `codecheck_mcp/audit/report/priority.py`, marked confirmed only when the findings themselves prove it. Run `ruff check codecheck_mcp tests` and
 `mypy codecheck_mcp` along with the tests.
 
 ## Adding or changing a check of the quick tools

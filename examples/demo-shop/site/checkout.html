@@ -3,15 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mobile - Demo shop</title>
+<title>Checkout - Demo shop</title>
 <meta name="description" content="Demo shop page for CodeCheck audits.">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <nav><a href="index.html">Home</a> <a href="errors.html">Errors</a> <a href="media.html">Media</a> <a href="api.html">API</a> <a href="mobile.html">Mobile</a> <a href="buttons.html">Buttons</a> <a href="cart.html">Cart</a> <a href="checkout.html">Checkout</a> <a href="notitle.html">No title</a></nav>
 <main>
-<h1>Mobile layout</h1>
-<table class="price-table"><tr><td>Espresso</td><td>Cappuccino</td><td>Flat white</td><td>Raf coffee</td><td>Hot chocolate</td></tr></table>
+<h1>Checkout</h1>
+<p id="summary">Loading your order…</p>
+<button type="button" id="place-order">Place order</button>
+<script>
+fetch("/api/order").then(r => {
+  if (!r.ok) console.error("Could not load the order summary: GET /api/order returned " + r.status);
+});
+document.getElementById("place-order").addEventListener("click", () => {
+  document.getElementById("summary").textContent = "Sending your order…";
+  fetch("/api/order", {method: "POST"});
+});
+</script>
 </main>
 </body>
 </html>

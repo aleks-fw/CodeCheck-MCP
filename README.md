@@ -35,6 +35,7 @@ Tested on Windows and Python 3.14. Other operating systems and Python versions h
 | **A real browser** | Chromium via Playwright: real clicks, real layout, real network. Nothing is guessed from the source code. |
 | **Made for a fix loop** | `current.json` with one record per problem: rule, page, selector or URL, evidence and a fingerprint that stays the same between runs. |
 | **Evidence, not opinions** | Every finding says what was measured. Critical findings and warnings come with a screenshot, the element outlined in red. |
+| **Prioritized issues** | Findings are grouped by cause: one root cause, its related issues, affected pages, impact 1-10 and a fix. Inferred links are marked as likely. |
 | **Regression view** | Each run is compared with the previous one: ✅ Fixed, 🔴 New, ⚠️ Unchanged. |
 | **Safe by design** | Read-only for your project, isolated browser context, navigation to other domains blocked, only passive security checks. |
 
@@ -82,7 +83,7 @@ Install by following [llms-install.md](llms-install.md).
 
 1. **Build** the site (or start it locally).
 2. **Audit.** Ask the agent: *"Run audit_project on http://localhost:5173 with criticalSelectors ["#checkout"]"*.
-   You get counts by severity, the list of critical findings and the paths to `report.md` and `current.json`.
+   You get counts by severity, the critical findings, the top prioritized issue groups and the paths to `report.md` and `current.json`.
 3. **Fix.** *"Read current.json and fix the critical findings and warnings. Use the selector, url and evidence of
    each finding to locate the code."* Each finding names the rule, the page, the element or resource and what was
    observed, so the agent does not have to reproduce the bug first.
@@ -128,67 +129,114 @@ Example call:
 }
 ```
 
-Answer (real run on [examples/demo-shop](examples/demo-shop), second run after adding a missing `<title>`):
+Answer (real run on [examples/demo-shop](examples/demo-shop) with `criticalSelectors: ["#checkout", "#place-order"]`, second run after adding a missing `<title>`):
 
 ```text
-CodeCheck audit of http://127.0.0.1:8765/: 7 page(s), viewports 375x812, 768x1024, 1280x800.
-Critical: 5 · Warnings: 4 · Notices: 25
+CodeCheck audit of http://127.0.0.1:8765/: 9 page(s), viewports 375x812, 768x1024, 1280x800.
+Critical: 8 · Warnings: 5 · Notices: 31
 
 Critical:
 - CC-001 `interaction/no-effect` on /buttons.html: Clicking #checkout does nothing
-- CC-002 `console/uncaught-exception` on /errors.html: Uncaught exception: ReferenceError: cartItems is not defined
-- CC-003 `accessibility/image-alt` on /media.html: Images must have alternative text
-- CC-004 `network/api-5xx` on /api.html: API request returned HTTP 500
-- CC-005 `network/script-failed` on /media.html: JavaScript file did not load
+- CC-002 `interaction/action-request-failed` on /cart.html: Clicking #place-order sends POST /api/order, which answers HTTP 500
+- CC-003 `interaction/action-request-failed` on /checkout.html: Clicking #place-order sends POST /api/order, which answers HTTP 500
+- CC-004 `console/uncaught-exception` on /errors.html: Uncaught exception: ReferenceError: cartItems is not defined
+- CC-005 `accessibility/image-alt` on /media.html: Images must have alternative text
+- CC-006 `network/api-5xx` on /api.html: API request returned HTTP 500
+- CC-007 `network/api-5xx` on /checkout.html: API request returned HTTP 500
+- CC-008 `network/script-failed` on /media.html: JavaScript file did not load
 
-Since the previous run: ✅ Fixed 1 · 🔴 New 0 · ⚠️ Unchanged 34
+Top issues (5 of 17 groups):
+- G-01 🔴 CRITICAL · impact 10/10 · API request returned HTTP 500 (/api/order) · pages: /cart.html, /checkout.html · 3 related
+- G-02 🔴 CRITICAL · impact 10/10 · Clicking #checkout does nothing · pages: /buttons.html
+- G-03 🔴 CRITICAL · impact 9/10 · Uncaught exception: ReferenceError: cartItems is not defined · pages: /errors.html
+- G-04 🔴 CRITICAL · impact 9/10 · API request returned HTTP 500 (/api/orders) · pages: /api.html
+- G-05 🔴 CRITICAL · impact 9/10 · JavaScript file did not load (/js/missing.js) · pages: /media.html
+
+Since the previous run: ✅ Fixed 1 · 🔴 New 0 · ⚠️ Unchanged 44
 Fixed:
-  CC-009 `seo/missing-title` on `/notitle.html`: Page has no title
+  CC-013 `seo/missing-title` on `/notitle.html`: Page has no title
 
 Report: .../report.md
 JSON: .../current.json
 Screenshots: .../screenshots
 ```
 
-A fragment of the same `report.md`:
+The top group in the same `report.md`:
 
 ```markdown
-## Changes since the previous run
+## Prioritized Issues
 
-✅ Fixed: 1 · 🔴 New: 0 · ⚠️ Unchanged: 34
+### 🔴 CRITICAL — API request returned HTTP 500 (/api/order)
 
-### ✅ Fixed
-
-- CC-009 `seo/missing-title` on `/notitle.html`: Page has no title
-
-## Summary
-
-| Severity | Count |
-|---|---|
-| 🔴 Critical | 5 |
-| 🟠 Warnings | 4 |
-| 🟡 Notices | 25 |
-
-## 🔴 Critical (5)
-
-### interaction
-
-#### CC-001 · `interaction/no-effect`
-
-**Clicking #checkout does nothing**
-
-Clicking #checkout on /buttons.html produced no navigation, URL change, network request or visible DOM change
-within 2 seconds. This control may depend on app state (cart, login): the page was reloaded before the click,
-so the state may have been reset.
-
-- **Page:** `/buttons.html`
-- **Selector:** `#checkout`
-- **Fingerprint:** `0efe5a1a7da1d417`
-
-![CC-001](screenshots/CC-001.png)
+- **Impact:** 10/10 (severity 8, breaks a function or exposes data +1, on several pages +1,
+  key action (criticalSelectors) +1, causes other issues +1)
+- **Category:** functionality
+- **Affected pages:** `/cart.html`, `/checkout.html`
+- **Root cause:** GET http://127.0.0.1:8765/api/order answered HTTP 500 on /checkout.html. (CC-007)
+- **Related issues:**
+  - CC-002 `interaction/action-request-failed` on `/cart.html`: Clicking #place-order sends POST /api/order,
+    which answers HTTP 500 (confirmed: the click sends a request to the same failing endpoint /api/order)
+  - CC-003 `interaction/action-request-failed` on `/checkout.html`: Clicking #place-order sends POST /api/order,
+    which answers HTTP 500 (confirmed: the click sends a request to the same failing endpoint /api/order)
+  - CC-010 `console/error` on `/checkout.html`: console.error: Could not load the order summary: GET /api/order
+    returned 500 (confirmed: the error text mentions /api/order)
+- **Recommendation:** The API endpoint in evidence fails on the server: check its server logs, fix the handler,
+  and make the page show an error state when the request fails.
+- **Evidence:** screenshots: [screenshots/CC-002.png](screenshots/CC-002.png), ... · urls:
+  `http://127.0.0.1:8765/api/order` · selectors: `#place-order` · requests:
+  `POST http://127.0.0.1:8765/api/order → 500`, `GET http://127.0.0.1:8765/api/order → 500` · console:
+  `Could not load the order summary: GET /api/order returned 500`
 ```
 
-The report ends with the list of tested pages and one recommendation per rule that was found.
+Below it come the Summary, every finding by severity and category (with its own screenshot and evidence), the list of tested pages and one recommendation per rule that was found.
+
+### Prioritized Issues
+
+After all checks, findings are merged into groups, one per cause, and sorted by severity, then impact, then the
+number of affected pages. Links between findings come only from the findings themselves:
+
+| Link | Based on | Marked |
+|---|---|---|
+| The same problem on several pages | same resource URL, or same rule and selector, or same message | same group |
+| A failing request and a click that sends a request to the same endpoint | same URL path | confirmed |
+| A failing request and a console error that names its URL | the URL in the error text | confirmed |
+| A heavy file and the page weight | the file is in the page's largest downloads | confirmed |
+| A missing script and "is not defined" errors or dead buttons on the page | same page | likely |
+| An uncaught exception and a dead button on the page | same page | likely |
+| A failing request and a console error about a request that does not name the URL | same page | likely |
+| A missing stylesheet and layout findings; a slow request and a slow load | same page | likely |
+
+If every link of a group is confirmed, the report says **Root cause**; if any link is inferred, it says
+**Likely root cause**. Console errors are recorded while the page loads, before the clicks, so they are never
+linked to requests sent by a click.
+
+Each group has:
+
+- **severity:** CRITICAL (a critical finding), HIGH (a warning about functionality or security), MEDIUM (another
+  warning), LOW (notices only);
+- **category:** `functionality`, `responsive`, `performance`, `accessibility`, `security`, `visual` or `other`;
+- **impact 1-10:** 8 / 5 / 2 for critical / warning / notice, +1 if it breaks a function or exposes data, +1 on
+  several pages or +2 on most pages, +1 for a key action from `criticalSelectors`, +1 if it causes 2+ other issues;
+  the parts are listed next to the number;
+- **affected pages, root cause, related issues** (each with the reason of the link), **recommendation** and
+  **evidence** (screenshots, URLs, selectors, requests with status, console text).
+
+In `current.json` the groups are under `groups`:
+
+```json
+{
+  "id": "G-01", "title": "API request returned HTTP 500 (/api/order)", "severity": "CRITICAL",
+  "category": "functionality", "impact": 10, "impactBasis": {"severity": 8, "on several pages": 1, "...": 1},
+  "affectedPages": ["/cart.html", "/checkout.html"],
+  "rootCause": {"text": "GET http://127.0.0.1:8765/api/order answered HTTP 500 on /checkout.html.",
+                "confirmed": true, "finding": "CC-007", "rule": "network/api-5xx"},
+  "relatedIssues": [{"finding": "CC-002", "rule": "interaction/action-request-failed", "page": "/cart.html",
+                     "message": "...", "confirmed": true,
+                     "link": "the click sends a request to the same failing endpoint /api/order"}],
+  "recommendation": "...", "evidence": {"screenshots": [], "urls": [], "selectors": [], "requests": [], "console": []},
+  "findings": ["CC-002", "CC-003", "CC-007", "CC-010"]
+}
+```
 
 ### Finding format (`current.json`)
 
@@ -212,7 +260,7 @@ interface Finding {
 ```
 
 `current.json` also holds the run metadata (`tool`, `version`, `project`, `url`, `date`, `pages`, `viewports`,
-`checks`, `errors`, `summary`) and, from the second run on, a `comparison` block with the fingerprints of fixed,
+`checks`, `errors`, `summary`), the `groups` described above and, from the second run on, a `comparison` block with the fingerprints of fixed,
 new and unchanged findings.
 
 ### What audit_project checks
@@ -227,20 +275,20 @@ new and unchanged findings.
 | layout | horizontal scroll with the deepest element past the edge (warning), text clipped by `overflow: hidden` (notice), tap targets under 24×24 px at 375 px (notice); every viewport |
 | fonts | `@font-face` font failed to load (warning), text shown in a fallback because the declared font never loaded (notice) |
 | performance | load over 3 s, LCP over 2.5 / 4 s, CLS over 0.1 / 0.25, page over 3 MB, over 100 requests, JS file over 500 KB, CSS file over 150 KB; thresholds in [thresholds.py](codecheck_mcp/audit/thresholds.py) |
-| interaction | clicks up to 20 buttons, `href="#"` / `javascript:` links and `role="button"` per page on a fresh load and watches 2 s for navigation, URL change, requests, DOM changes, dialogs, new tabs; skips logout / delete; critical for `criticalSelectors`. A critical selector that was never clicked is reported too: critical if it matched no element on any page, warning if it was hidden, invalid, destructive or past the click limit |
+| interaction | clicks up to 20 buttons, `href="#"` / `javascript:` links and `role="button"` per page on a fresh load and watches 2 s for navigation, URL change, requests, DOM changes, dialogs, new tabs; skips logout / delete; critical for `criticalSelectors`. If the click works but the request it sends fails, `interaction/action-request-failed` (critical for 5xx, warning for 4xx; 401/403 and 4xx from an empty form are ignored). A critical selector that was never clicked is reported too: critical if it matched no element on any page, warning if it was hidden, invalid, destructive or past the click limit |
 | security | plain HTTP (not localhost), mixed content (warning); no CSP, no `nosniff`, no HSTS (notice); cookies without `Secure` or session cookies without `HttpOnly` (warning); public source maps (notice) |
 
 If axe and another check find the same thing (for example a missing `alt` or `lang`), it is reported once.
 
 ## Try it on the demo shop
 
-[examples/demo-shop](examples/demo-shop) is a small site with one deliberate bug per page (script errors, a broken
-image and script, an API that answers 500, horizontal scroll on phones, a dead checkout button, a page without a
-title) and a clean home page.
+[examples/demo-shop](examples/demo-shop) is a small site with deliberate bugs (script errors, a broken image and
+script, APIs that answer 500, horizontal scroll on phones, a dead checkout button, "Place order" buttons whose
+request fails, a page without a title) and a clean home page.
 
 ```bash
 python examples/demo-shop/serve.py 8765
-# then ask your agent: run audit_project on http://127.0.0.1:8765/ with criticalSelectors ["#checkout"]
+# then ask your agent: run audit_project on http://127.0.0.1:8765/ with criticalSelectors ["#checkout", "#place-order"]
 ```
 
 ## Architecture
@@ -255,7 +303,7 @@ codecheck_mcp/
     thresholds.py           every threshold in one place
     core/                   finding, fingerprint, selector, screenshot, crawler, session (events per page)
     checks/                 one module per category; each has run(page, ctx) -> list[Finding]
-    report/                 json_report, markdown, diff
+    report/                 json_report, markdown, diff, priority (grouping)
   vendor/axe.min.js         axe-core 4.13.0, unmodified (MPL-2.0)
 ```
 

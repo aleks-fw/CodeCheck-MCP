@@ -35,6 +35,7 @@ MCP-сервер, который **проверяет готовый веб-пр
 | **Настоящий браузер** | Chromium через Playwright: реальные клики, реальная вёрстка, реальная сеть. Ничего не угадывается по исходному коду. |
 | **Сделан для цикла исправлений** | `current.json`: одна запись на проблему, с правилом, страницей, селектором или URL, доказательствами и отпечатком, который не меняется между прогонами. |
 | **Доказательства, а не мнения** | В каждой находке написано, что именно измерено. У critical и warning есть скриншот, элемент обведён красным. |
+| **Приоритеты** | Находки собираются в группы по причине: первопричина, связанные с ней проблемы, страницы, влияние 1-10 и что исправить. Выведенные связи помечены как предполагаемые. |
 | **Сравнение прогонов** | Каждый прогон сравнивается с предыдущим: ✅ исправлено, 🔴 новое, ⚠️ без изменений. |
 | **Безопасен по устройству** | Проект только читается, браузер изолирован, переходы на чужие домены блокируются, проверки безопасности только пассивные. |
 
@@ -82,7 +83,8 @@ claude mcp add --scope user codecheck -- "<путь>/codecheck-env/Scripts/codec
 
 1. **Build.** Соберите сайт или запустите его локально.
 2. **Audit.** Скажите агенту: *«Запусти audit_project на http://localhost:5173 с criticalSelectors ["#checkout"]»*.
-   В ответе будут счётчики по серьёзности, список critical и пути к `report.md` и `current.json`.
+   В ответе будут счётчики по серьёзности, список critical, первые группы Prioritized Issues и пути к
+   `report.md` и `current.json`.
 3. **Fix.** *«Прочитай current.json и исправь critical и warning. Код ищи по selector, url и evidence каждой
    находки»*. В каждой находке указаны правило, страница, элемент или ресурс и то, что наблюдалось, поэтому
    агенту не нужно сначала воспроизводить ошибку.
@@ -128,68 +130,100 @@ claude mcp add --scope user codecheck -- "<путь>/codecheck-env/Scripts/codec
 }
 ```
 
-Ответ (настоящий прогон на [examples/demo-shop](examples/demo-shop), второй запуск после того, как добавили
-недостающий `<title>`):
+Ответ (настоящий прогон на [examples/demo-shop](examples/demo-shop) с `criticalSelectors: ["#checkout",
+"#place-order"]`, второй запуск после того, как добавили недостающий `<title>`):
 
 ```text
-CodeCheck audit of http://127.0.0.1:8765/: 7 page(s), viewports 375x812, 768x1024, 1280x800.
-Critical: 5 · Warnings: 4 · Notices: 25
+CodeCheck audit of http://127.0.0.1:8765/: 9 page(s), viewports 375x812, 768x1024, 1280x800.
+Critical: 8 · Warnings: 5 · Notices: 31
 
 Critical:
 - CC-001 `interaction/no-effect` on /buttons.html: Clicking #checkout does nothing
-- CC-002 `console/uncaught-exception` on /errors.html: Uncaught exception: ReferenceError: cartItems is not defined
-- CC-003 `accessibility/image-alt` on /media.html: Images must have alternative text
-- CC-004 `network/api-5xx` on /api.html: API request returned HTTP 500
-- CC-005 `network/script-failed` on /media.html: JavaScript file did not load
+- CC-002 `interaction/action-request-failed` on /cart.html: Clicking #place-order sends POST /api/order, which answers HTTP 500
+- CC-003 `interaction/action-request-failed` on /checkout.html: Clicking #place-order sends POST /api/order, which answers HTTP 500
+- CC-004 `console/uncaught-exception` on /errors.html: Uncaught exception: ReferenceError: cartItems is not defined
+- CC-005 `accessibility/image-alt` on /media.html: Images must have alternative text
+- CC-006 `network/api-5xx` on /api.html: API request returned HTTP 500
+- CC-007 `network/api-5xx` on /checkout.html: API request returned HTTP 500
+- CC-008 `network/script-failed` on /media.html: JavaScript file did not load
 
-Since the previous run: ✅ Fixed 1 · 🔴 New 0 · ⚠️ Unchanged 34
+Top issues (5 of 17 groups):
+- G-01 🔴 CRITICAL · impact 10/10 · API request returned HTTP 500 (/api/order) · pages: /cart.html, /checkout.html · 3 related
+- G-02 🔴 CRITICAL · impact 10/10 · Clicking #checkout does nothing · pages: /buttons.html
+- G-03 🔴 CRITICAL · impact 9/10 · Uncaught exception: ReferenceError: cartItems is not defined · pages: /errors.html
+- G-04 🔴 CRITICAL · impact 9/10 · API request returned HTTP 500 (/api/orders) · pages: /api.html
+- G-05 🔴 CRITICAL · impact 9/10 · JavaScript file did not load (/js/missing.js) · pages: /media.html
+
+Since the previous run: ✅ Fixed 1 · 🔴 New 0 · ⚠️ Unchanged 44
 Fixed:
-  CC-009 `seo/missing-title` on `/notitle.html`: Page has no title
+  CC-013 `seo/missing-title` on `/notitle.html`: Page has no title
 
 Report: .../report.md
 JSON: .../current.json
 Screenshots: .../screenshots
 ```
 
-Фрагмент того же `report.md` (отчёт на английском: его читает прежде всего ИИ):
+Первая группа из того же `report.md` (отчёт на английском: его читает прежде всего ИИ):
 
 ```markdown
-## Changes since the previous run
+## Prioritized Issues
 
-✅ Fixed: 1 · 🔴 New: 0 · ⚠️ Unchanged: 34
+### 🔴 CRITICAL — API request returned HTTP 500 (/api/order)
 
-### ✅ Fixed
-
-- CC-009 `seo/missing-title` on `/notitle.html`: Page has no title
-
-## Summary
-
-| Severity | Count |
-|---|---|
-| 🔴 Critical | 5 |
-| 🟠 Warnings | 4 |
-| 🟡 Notices | 25 |
-
-## 🔴 Critical (5)
-
-### interaction
-
-#### CC-001 · `interaction/no-effect`
-
-**Clicking #checkout does nothing**
-
-Clicking #checkout on /buttons.html produced no navigation, URL change, network request or visible DOM change
-within 2 seconds. This control may depend on app state (cart, login): the page was reloaded before the click,
-so the state may have been reset.
-
-- **Page:** `/buttons.html`
-- **Selector:** `#checkout`
-- **Fingerprint:** `0efe5a1a7da1d417`
-
-![CC-001](screenshots/CC-001.png)
+- **Impact:** 10/10 (severity 8, breaks a function or exposes data +1, on several pages +1,
+  key action (criticalSelectors) +1, causes other issues +1)
+- **Category:** functionality
+- **Affected pages:** `/cart.html`, `/checkout.html`
+- **Root cause:** GET http://127.0.0.1:8765/api/order answered HTTP 500 on /checkout.html. (CC-007)
+- **Related issues:**
+  - CC-002 `interaction/action-request-failed` on `/cart.html`: Clicking #place-order sends POST /api/order,
+    which answers HTTP 500 (confirmed: the click sends a request to the same failing endpoint /api/order)
+  - CC-003 `interaction/action-request-failed` on `/checkout.html`: Clicking #place-order sends POST /api/order,
+    which answers HTTP 500 (confirmed: the click sends a request to the same failing endpoint /api/order)
+  - CC-010 `console/error` on `/checkout.html`: console.error: Could not load the order summary: GET /api/order
+    returned 500 (confirmed: the error text mentions /api/order)
+- **Recommendation:** The API endpoint in evidence fails on the server: check its server logs, fix the handler,
+  and make the page show an error state when the request fails.
+- **Evidence:** screenshots: [screenshots/CC-002.png](screenshots/CC-002.png), ... · urls:
+  `http://127.0.0.1:8765/api/order` · selectors: `#place-order` · requests:
+  `POST http://127.0.0.1:8765/api/order → 500`, `GET http://127.0.0.1:8765/api/order → 500` · console:
+  `Could not load the order summary: GET /api/order returned 500`
 ```
 
-В конце отчёта — список проверенных страниц и по одной рекомендации на каждое встреченное правило.
+Ниже идут Summary, все находки по серьёзности и категориям (у каждой свой скриншот и доказательства), список проверенных страниц и по одной рекомендации на каждое встреченное правило.
+
+### Prioritized Issues
+
+После всех проверок находки собираются в группы, по одной на причину, и сортируются по серьёзности, затем по
+влиянию, затем по числу затронутых страниц. Связи между находками берутся только из самих находок:
+
+| Связь | Основание | Пометка |
+|---|---|---|
+| Одна и та же проблема на нескольких страницах | тот же URL ресурса, или то же правило и селектор, или тот же текст | одна группа |
+| Упавший запрос и клик, который шлёт запрос на тот же адрес | тот же путь URL | confirmed |
+| Упавший запрос и ошибка в консоли, где назван его URL | URL в тексте ошибки | confirmed |
+| Тяжёлый файл и вес страницы | файл среди самых больших загрузок страницы | confirmed |
+| Не загрузился скрипт, и на странице ошибки «is not defined» или мёртвые кнопки | та же страница | likely |
+| Необработанное исключение и мёртвая кнопка на странице | та же страница | likely |
+| Упавший запрос и ошибка в консоли про запрос, где URL не назван | та же страница | likely |
+| Не загрузились стили и находки вёрстки; медленный запрос и медленная загрузка | та же страница | likely |
+
+Если все связи группы подтверждены, в отчёте написано **Root cause**; если хотя бы одна выведена, —
+**Likely root cause**. Ошибки консоли записываются при загрузке страницы, до кликов, поэтому с запросами от кликов
+они не связываются никогда.
+
+У каждой группы есть:
+
+- **severity:** CRITICAL (есть critical), HIGH (warning про функциональность или безопасность), MEDIUM (другой
+  warning), LOW (только notice);
+- **category:** `functionality`, `responsive`, `performance`, `accessibility`, `security`, `visual` или `other`;
+- **impact 1-10:** 8 / 5 / 2 за critical / warning / notice, +1 если ломает функцию или раскрывает данные, +1 на
+  нескольких страницах или +2 на большинстве, +1 за ключевое действие из `criticalSelectors`, +1 если из-за неё
+  есть 2+ других проблемы; слагаемые показаны рядом с числом;
+- **затронутые страницы, первопричина, связанные проблемы** (у каждой основание связи), **рекомендация** и
+  **доказательства** (скриншоты, URL, селекторы, запросы со статусом, текст из консоли).
+
+В `current.json` группы лежат в поле `groups`, формат — как в английском README.
 
 ### Формат находки (`current.json`)
 
@@ -213,7 +247,7 @@ interface Finding {
 ```
 
 Ещё в `current.json` лежат данные прогона (`tool`, `version`, `project`, `url`, `date`, `pages`, `viewports`,
-`checks`, `errors`, `summary`), а начиная со второго прогона — блок `comparison` с отпечатками исправленных, новых
+`checks`, `errors`, `summary`), группы `groups` из раздела выше, а начиная со второго прогона — блок `comparison` с отпечатками исправленных, новых
 и оставшихся находок.
 
 ### Что проверяет audit_project
@@ -228,20 +262,20 @@ interface Finding {
 | layout | горизонтальный скролл с самым глубоким элементом за краем (warning), текст обрезан `overflow: hidden` (notice), зоны нажатия меньше 24×24 px на 375 px (notice); на каждой ширине |
 | fonts | шрифт из `@font-face` не загрузился (warning), текст показан запасным шрифтом, потому что объявленный так и не загрузился (notice) |
 | performance | load дольше 3 с, LCP больше 2,5 / 4 с, CLS больше 0,1 / 0,25, страница больше 3 МБ, больше 100 запросов, JS-файл больше 500 КБ, CSS-файл больше 150 КБ; пороги в [thresholds.py](codecheck_mcp/audit/thresholds.py) |
-| interaction | кликает до 20 кнопок, ссылок `href="#"` / `javascript:` и `role="button"` на странице (каждый раз на свежей загрузке) и 2 с ждёт перехода, смены URL, запросов, изменений DOM, диалогов, новых вкладок; пропускает «выйти» / «удалить»; critical для `criticalSelectors`. О критичном селекторе, по которому так и не кликнули, тоже сообщается: critical, если он не нашёл ни одного элемента ни на одной странице, warning, если элемент скрыт, селектор невалидный, кнопка похожа на удаление или кончился лимит кликов |
+| interaction | кликает до 20 кнопок, ссылок `href="#"` / `javascript:` и `role="button"` на странице (каждый раз на свежей загрузке) и 2 с ждёт перехода, смены URL, запросов, изменений DOM, диалогов, новых вкладок; пропускает «выйти» / «удалить»; critical для `criticalSelectors`. Если клик сработал, но отправленный им запрос упал, — `interaction/action-request-failed` (critical для 5xx, warning для 4xx; 401/403 и 4xx от пустой формы не считаются). О критичном селекторе, по которому так и не кликнули, тоже сообщается: critical, если он не нашёл ни одного элемента ни на одной странице, warning, если элемент скрыт, селектор невалидный, кнопка похожа на удаление или кончился лимит кликов |
 | security | сайт по HTTP (кроме localhost), mixed content (warning); нет CSP, `nosniff`, HSTS (notice); cookies без `Secure` или сессионные без `HttpOnly` (warning); открытые source maps (notice) |
 
 Если axe и другая проверка нашли одно и то же (например, нет `alt` или `lang`), в отчёте будет одна запись.
 
 ## Попробовать на демо-магазине
 
-[examples/demo-shop](examples/demo-shop) — маленький сайт, где на каждой странице по намеренной ошибке (ошибки в
-скриптах, битые картинка и скрипт, API с ответом 500, горизонтальный скролл на телефоне, мёртвая кнопка
-«Checkout», страница без title), и «чистая» главная.
+[examples/demo-shop](examples/demo-shop) — маленький сайт с намеренными ошибками (ошибки в скриптах, битые
+картинка и скрипт, API с ответом 500, горизонтальный скролл на телефоне, мёртвая кнопка «Checkout», кнопки
+«Place order», чей запрос падает, страница без title), и «чистая» главная.
 
 ```bash
 python examples/demo-shop/serve.py 8765
-# и скажите агенту: запусти audit_project на http://127.0.0.1:8765/ с criticalSelectors ["#checkout"]
+# и скажите агенту: запусти audit_project на http://127.0.0.1:8765/ с criticalSelectors ["#checkout", "#place-order"]
 ```
 
 ## Архитектура
@@ -256,7 +290,7 @@ codecheck_mcp/
     thresholds.py           все пороги в одном месте
     core/                   finding, fingerprint, selector, screenshot, crawler, session (события страницы)
     checks/                 один модуль на категорию; в каждом run(page, ctx) -> list[Finding]
-    report/                 json_report, markdown, diff
+    report/                 json_report, markdown, diff, priority (группировка)
   vendor/axe.min.js         axe-core 4.13.0 без изменений (MPL-2.0)
 ```
 

@@ -1,13 +1,13 @@
 # Demo shop
 
-A small static site with deliberate bugs, for trying `audit_project`. `serve.py` serves it and adds an API endpoint
-that always answers HTTP 500.
+A small static site with deliberate bugs, for trying `audit_project`. `serve.py` serves it and answers every `/api/...`
+request with HTTP 500.
 
 ```bash
 python serve.py 8765
 ```
 
-Then run `audit_project` on `http://127.0.0.1:8765/` with `criticalSelectors: ["#checkout"]`.
+Then run `audit_project` on `http://127.0.0.1:8765/` with `criticalSelectors: ["#checkout", "#place-order"]`.
 
 | Page | Deliberate bug | Expected finding |
 |---|---|---|
@@ -18,6 +18,11 @@ Then run `audit_project` on `http://127.0.0.1:8765/` with `criticalSelectors: ["
 | `/mobile.html` | 640 px table | `layout/horizontal-overflow` at 375 px |
 | `/buttons.html` | `#checkout` has no handler; "Add to cart" works | `interaction/no-effect` (critical) for `#checkout` only |
 | `/notitle.html` | no `<title>` | `seo/missing-title` |
+| `/checkout.html` | `GET /api/order` answers 500 on load and is logged; "Place order" sends `POST /api/order`, 500 | `network/api-5xx`, `console/error`, `interaction/action-request-failed` |
+| `/cart.html` | the same "Place order" button | `interaction/action-request-failed` |
+
+In **Prioritized Issues** the checkout and cart findings form one group: the root cause is `/api/order` answering
+500, and the console error and both "Place order" buttons are listed as confirmed related issues.
 
 Notices such as missing canonical, favicon, Open Graph, robots.txt and sitemap.xml are expected too: the demo does
 not have them.
