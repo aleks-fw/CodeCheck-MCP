@@ -5,6 +5,7 @@ import asyncio
 
 from fastmcp import FastMCP
 
+from .audit.runner import audit
 from .browser import run
 from .checks.fonts import check_fonts
 from .checks.images import check_images
@@ -30,7 +31,7 @@ async def _run(target: str, checks: list, max_pages: int, **opts) -> str:
         return f"Ошибка: {e}"
     except Exception as e:
         return f"Ошибка запуска проверки: {type(e).__name__}: {str(e)[:300]}"
-    return f"{rep.summary()}\n\nПолный отчёт: {rep.out_dir / 'report.md'}"
+    return f"{rep.summary()}\n\nПолный отчёт: {rep.ensure_dir() / 'report.md'}"
 
 
 @mcp.tool
@@ -69,6 +70,25 @@ async def test_images(target: str, max_pages: int = 10) -> str:
 async def quick_security(target: str, max_pages: int = 3) -> str:
     """Лёгкая безопасность: секреты в файлах и истории git, .env в git, заголовки, cookies, mixed content."""
     return await _run(target, [check_security], max_pages)
+
+
+@mcp.tool
+async def audit_project(url: str, maxPages: int = 10, viewports: list[int] | None = None,
+                        checks: list[str] | None = None, criticalSelectors: list[str] | None = None,
+                        outputDir: str | None = None) -> str:
+    """Audit a web project for an automated fix loop (Build → Audit → Fix → Re-audit).
+    url: site URL or path to the project folder/file. maxPages: same-origin pages to crawl.
+    viewports: widths in px (default 375, 768, 1280). checks: categories (default all).
+    criticalSelectors: selectors of key actions; a dead one is critical. outputDir: where current.json,
+    report.md and screenshots/ go (default: a folder per project in CODECHECK_REPORTS_DIR).
+    Returns counts by severity, the critical findings and paths to the files."""
+    try:
+        res = await asyncio.to_thread(audit, url, maxPages, viewports, checks, criticalSelectors, outputDir)
+    except (FileNotFoundError, ValueError) as e:
+        return f"Error: {e}"
+    except Exception as e:
+        return f"Audit failed: {type(e).__name__}: {str(e)[:300]}"
+    return res.summary_text()
 
 
 def main() -> None:

@@ -44,7 +44,7 @@ def check_fonts(browser, url, report, **_):
             return
 
         # 1. сколько разных основных шрифтов по объёму текста
-        weight_by_family = Counter()
+        weight_by_family: Counter[str] = Counter()
         for i in items:
             weight_by_family[_primary(i["family"])] += i["chars"]
         families = list(weight_by_family)
@@ -85,12 +85,12 @@ def check_fonts(browser, url, report, **_):
         sizes = sorted({round(i["size"]) for i in items})
         if len(sizes) > 9:
             report.add("fonts", "low", f"Слишком много разных размеров шрифта ({len(sizes)}): {sizes}", page=url)
-        avg = {}
+        avg: dict[str, list[float]] = {}
         for i in items:
             if i["tag"] in ("h1", "h2", "h3", "h4", "h5", "h6"):
                 avg.setdefault(i["tag"], []).append(i["size"])
         tags = sorted(avg)
-        for a, b in zip(tags, tags[1:]):
+        for a, b in zip(tags, tags[1:], strict=False):
             if max(avg[b]) > min(avg[a]) + 0.5:
                 report.add("fonts", "low", f"Нарушена иерархия: {b} ({max(avg[b]):.0f}px) крупнее {a} "
                            f"({min(avg[a]):.0f}px)", page=url)

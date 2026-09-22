@@ -1,7 +1,7 @@
+from conftest import fixture_path
+
 from codecheck_mcp.browser import run
 from codecheck_mcp.checks.interactions import check_interactions
-
-from conftest import fixture_path
 
 
 def msgs(rep):

@@ -63,6 +63,36 @@ def open_target(target: str):
         srv.server_close()
 
 
+def external_route_handler(origin: str, on_blocked=None):
+    """Обработчик маршрутов: переходы на чужие домены блокируются, чужие подресурсы грузятся с таймаутом."""
+    def handle_route(route, request):
+        external = urlparse(request.url).netloc not in (origin, "")
+        if external and request.is_navigation_request():
+            if on_blocked:
+                on_blocked(request.url)
+            route.abort()
+        elif external and request.url.startswith(("http://", "https://")):
+            # внешний подресурс (шрифт, скрипт, картинка): подвисший сервер не должен вешать всю проверку
+            try:
+                route.fulfill(response=route.fetch(timeout=EXTERNAL_TIMEOUT_MS))
+            except Exception:
+                route.abort()
+        else:
+            route.continue_()
+    return handle_route
+
+
+def launch_chromium(pw):
+    """Запуск Chromium с понятной ошибкой, если браузер не скачан."""
+    try:
+        return pw.chromium.launch()
+    except Exception as e:
+        if "Executable doesn't exist" in str(e) or "playwright install" in str(e):
+            raise RuntimeError("Браузер Chromium для Playwright не установлен. "
+                               "Выполните один раз: python -m playwright install chromium") from e
+        raise
+
+
 def new_page(browser, report: Report, page_url: str, viewport: dict | None = None):
     """Чистый изолированный контекст со слушателями ошибок; внешние переходы блокируются."""
     ctx = browser.new_context(viewport=viewport or DEFAULT_VIEWPORT, ignore_https_errors=False)
@@ -94,26 +124,14 @@ def new_page(browser, report: Report, page_url: str, viewport: dict | None = Non
         if urlparse(req.url).netloc == origin or req.resource_type in ("script", "stylesheet", "image", "font"):
             report.add("network", "medium", f"Запрос не выполнен: {req.url[:150]}", page=page_url)
 
-    def handle_route(route, request):
-        external = urlparse(request.url).netloc not in (origin, "")
-        if external and request.is_navigation_request():
-            report.add("interactions", "low", f"Переход на внешний домен заблокирован: {request.url[:150]}",
-                       page=page_url)
-            route.abort()
-        elif external and request.url.startswith(("http://", "https://")):
-            # внешний подресурс (шрифт, скрипт, картинка): подвисший сервер не должен вешать всю проверку
-            try:
-                route.fulfill(response=route.fetch(timeout=EXTERNAL_TIMEOUT_MS))
-            except Exception:
-                route.abort()
-        else:
-            route.continue_()
+    def on_blocked(url):
+        report.add("interactions", "low", f"Переход на внешний домен заблокирован: {url[:150]}", page=page_url)
 
     page.on("console", on_console)
     page.on("pageerror", lambda e: report.add("console", "high", f"JS-исключение: {str(e)[:200]}", page=page_url))
     page.on("response", on_response)
     page.on("requestfailed", on_failed)
-    ctx.route("**/*", handle_route)  # на контексте, чтобы покрывать и всплывающие окна
+    ctx.route("**/*", external_route_handler(origin, on_blocked))  # на контексте, чтобы покрывать и всплывающие окна
     page.add_init_script(SELECTOR_JS)
     return ctx, page
 
@@ -138,7 +156,8 @@ def goto(page, url: str):
 def crawl(browser, report: Report, start_url: str, max_pages: int = 10) -> list[str]:
     """Обход внутренних ссылок в ширину; возвращает список страниц."""
     origin = urlparse(start_url).netloc
-    seen, queue = [], [start_url]
+    seen: list[str] = []
+    queue = [start_url]
     while queue and len(seen) < max_pages:
         url = queue.pop(0)
         if url in seen:
@@ -174,13 +193,7 @@ def run(target: str, checks: list, report: Report | None = None, max_pages: int 
     with open_target(target) as start_url:
         report = report or Report(target=target)
         with sync_playwright() as pw:
-            try:
-                browser = pw.chromium.launch()
-            except Exception as e:
-                if "Executable doesn't exist" in str(e) or "playwright install" in str(e):
-                    raise RuntimeError("Браузер Chromium для Playwright не установлен. "
-                                       "Выполните один раз: python -m playwright install chromium") from e
-                raise
+            browser = launch_chromium(pw)
             try:
                 report.pages = crawl(browser, report, start_url, max_pages)
                 for url in report.pages:

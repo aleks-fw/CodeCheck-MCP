@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import io
+from typing import Any
 
 from PIL import Image
 
@@ -184,7 +185,8 @@ def _image_bg_contrast(page, item) -> float | None:
         img.thumbnail((60, 60))
         f, a = item["fg"], item["op"]
         ratios = []
-        for px in getattr(img, "get_flattened_data", img.getdata)():
+        pixels: Any = getattr(img, "get_flattened_data", img.getdata)()
+        for px in pixels:
             eff = (f["r"] * a + px[0] * (1 - a), f["g"] * a + px[1] * (1 - a), f["b"] * a + px[2] * (1 - a))
             ratios.append(_ratio(eff, px))
         ratios.sort()
@@ -202,7 +204,7 @@ def check_layout(browser, url, report, viewports=None, **_):
             goto(page, url)
             res = page.evaluate(ANALYZE_JS)
 
-            def emit(sev, msg, rects, sel="", name="layout"):
+            def emit(sev, msg, rects, sel="", name="layout", page=page, w=w, vp=vp):
                 shot = annotate(page, report, rects, f"{name}-{w}") if rects else ""
                 report.add("layout", sev, msg, page=url, selector=sel, viewport=vp, screenshot=shot)
 

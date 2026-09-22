@@ -1,6 +1,7 @@
 """Интерактив: мёртвые кнопки, ложные реакции, перекрытые кнопки, формы, битые якоря."""
 from __future__ import annotations
 
+from typing import Any
 from urllib.parse import urldefrag
 
 from ..browser import goto, new_page
@@ -79,13 +80,16 @@ STATE_JS = """
 def _probe(browser, report, url, idx, action="click", force=False):
     """Кликает элемент на свежей странице и возвращает, что произошло."""
     ctx, page = new_page(browser, report, url)
-    ev = {"popup": 0, "dialog": 0, "download": 0, "reqs": 0, "posts": 0, "error": ""}
+    ev: dict[str, Any] = {"popup": 0, "dialog": 0, "download": 0, "reqs": 0, "posts": 0, "error": ""}
     try:
         goto(page, url)
         page.evaluate(COLLECT_JS)
         before = page.evaluate(STATE_JS)
         ctx.on("page", lambda p: ev.__setitem__("popup", ev["popup"] + 1))
-        page.on("dialog", lambda d: (ev.__setitem__("dialog", ev["dialog"] + 1), d.dismiss()))
+        def on_dialog(d):
+            ev["dialog"] += 1
+            d.dismiss()
+        page.on("dialog", on_dialog)
         page.on("download", lambda d: ev.__setitem__("download", ev["download"] + 1))
 
         def on_req(r):
@@ -149,7 +153,7 @@ def check_interactions(browser, url, report, **_):
     for it in [i for i in data["items"] if not i["skip"]][:MAX_CANDIDATES]:
         label = f"«{it['text']}»" if it["text"] else f"<{it['tag']}>"
 
-        def add(sev, msg):
+        def add(sev, msg, it=it):
             report.add("interactions", sev, msg, page=url, selector=it["sel"],
                        screenshot=_shot(browser, report, url, it["rect"], "button"))
 
