@@ -14,6 +14,7 @@ CLICKS = HEAD.format("Clicks") + """
 <button id="toggle" onclick="document.getElementById('out').textContent = 'changed'">Toggle</button>
 <button id="fetcher" onclick="fetch('/api/ok')">Load data</button>
 <button id="nav" onclick="location.href = 'other.html'">Go</button>
+<button id="late-nav" onclick="fetch('/api/ok'); setTimeout(() => { location.href = 'other.html'; }, 300)">Save and go</button>
 <a href="#" id="dead-link">Dead link</a>
 <a href="javascript:void(0)" id="js-link">JS link</a>
 <div role="button" id="alerter" tabindex="0" onclick="alert('hi')">Alert</div>

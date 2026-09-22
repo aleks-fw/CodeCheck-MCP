@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "codecheck-mcp"
-version = "0.2.0"
+version = "0.2.1"
 description = "MCP server that audits a finished web project in a real browser and writes a report an AI can fix code from"
 readme = "README.md"
 license = { text = "MIT" }

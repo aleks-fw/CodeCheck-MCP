@@ -227,7 +227,7 @@ new and unchanged findings.
 | layout | horizontal scroll with the deepest element past the edge (warning), text clipped by `overflow: hidden` (notice), tap targets under 24×24 px at 375 px (notice); every viewport |
 | fonts | `@font-face` font failed to load (warning), text shown in a fallback because the declared font never loaded (notice) |
 | performance | load over 3 s, LCP over 2.5 / 4 s, CLS over 0.1 / 0.25, page over 3 MB, over 100 requests, JS file over 500 KB, CSS file over 150 KB; thresholds in [thresholds.py](codecheck_mcp/audit/thresholds.py) |
-| interaction | clicks up to 20 buttons, `href="#"` / `javascript:` links and `role="button"` per page on a fresh load and watches 2 s for navigation, URL change, requests, DOM changes, dialogs, new tabs; skips logout / delete; critical for `criticalSelectors` |
+| interaction | clicks up to 20 buttons, `href="#"` / `javascript:` links and `role="button"` per page on a fresh load and watches 2 s for navigation, URL change, requests, DOM changes, dialogs, new tabs; skips logout / delete; critical for `criticalSelectors`. A critical selector that was never clicked is reported too: critical if it matched no element on any page, warning if it was hidden, invalid, destructive or past the click limit |
 | security | plain HTTP (not localhost), mixed content (warning); no CSP, no `nosniff`, no HSTS (notice); cookies without `Secure` or session cookies without `HttpOnly` (warning); public source maps (notice) |
 
 If axe and another check find the same thing (for example a missing `alt` or `lang`), it is reported once.
@@ -286,7 +286,6 @@ then each check reads the same page. Checks are registered in `audit/checks/__in
 
 ## Roadmap
 
-- Report critical selectors that are not found on any page.
 - Optional session setup (cookies or a login script) to audit pages behind a login.
 - Check console and network at every viewport.
 - A `max duration` limit for very large sites.

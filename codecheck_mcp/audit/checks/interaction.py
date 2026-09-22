@@ -150,12 +150,27 @@ def _probe(page, item: dict) -> tuple[str | None, str]:
             page.remove_listener(name, h)
 
 
+def _reload(page, url: str, attempts: int = 3) -> None:
+    """Свежая загрузка страницы. Переход, начатый прошлым кликом (например, через setTimeout), может перебить
+    нашу загрузку или увести на другую страницу: тогда ждём и грузим ещё раз."""
+    for n in range(attempts):
+        try:
+            goto(page, url)
+            if urldefrag(page.url)[0] == urldefrag(url)[0]:
+                return
+        except Exception:
+            if n == attempts - 1:
+                raise
+        page.wait_for_timeout(500)
+    raise RuntimeError(f"could not reload {url}: the page kept navigating to {page.url}")
+
+
 def run(page, ctx) -> list[Finding]:
     critical = ctx.site.critical_selectors
-    goto(page, ctx.url)
+    _reload(page, ctx.url)
     state = _critical_state(ctx)
     if critical:
-        for c, seen in zip(critical, page.evaluate(PRESENCE_JS, critical)):
+        for c, seen in zip(critical, page.evaluate(PRESENCE_JS, critical), strict=True):  # PRESENCE_JS: по ответу на селектор
             state(c, "limit" if seen == "visible" else seen)  # видимый, но ещё не кликнутый
     items = page.evaluate(COLLECT_JS, critical)
     out: list[Finding] = []
@@ -169,7 +184,7 @@ def run(page, ctx) -> list[Finding]:
             continue
         tried += 1
         if tried > 1:  # каждый клик на свежей странице
-            goto(page, ctx.url)
+            _reload(page, ctx.url)
             again = page.evaluate(COLLECT_JS, critical)
             if item["i"] >= len(again) or again[item["i"]]["sel"] != item["sel"]:
                 for c in item["hits"]:
@@ -198,7 +213,7 @@ def run(page, ctx) -> list[Finding]:
                 evidence={"observedMs": T.CLICK_OBSERVE_MS, "critical": item["critical"],
                           "watched": ["url", "navigation", "network request", "DOM mutation", "dialog", "new tab",
                                       "download", "scroll", "form validation"]}))
-    goto(page, ctx.url)  # вернуть страницу в исходное состояние для скриншотов
+    _reload(page, ctx.url)  # вернуть страницу в исходное состояние для скриншотов
     return out
 
 
