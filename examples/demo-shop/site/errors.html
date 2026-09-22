@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Errors - Demo shop</title>
+<meta name="description" content="Demo shop page for CodeCheck audits.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav><a href="index.html">Home</a> <a href="errors.html">Errors</a> <a href="media.html">Media</a> <a href="api.html">API</a> <a href="mobile.html">Mobile</a> <a href="buttons.html">Buttons</a> <a href="notitle.html">No title</a></nav>
+<main>
+<h1>Script errors</h1>
+<p>This page logs an error, throws an uncaught exception and leaves a promise rejection unhandled.</p>
+<script>
+console.error("Cart total is NaN");
+function initCart() { cartItems.forEach(render); }
+initCart();
+</script>
+<script>
+async function loadProfile() { throw new Error("profile request failed"); }
+loadProfile();
+</script>
+</main>
+</body>
+</html>

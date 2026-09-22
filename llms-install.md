@@ -1,8 +1,10 @@
 # Installing CodeCheck MCP (instructions for an AI agent)
 
 Repository: https://github.com/aleks-fw/CodeCheck-MCP
-What it is: an MCP server (Python, stdio) that QA-tests a finished web project in a real browser.
-Tools: `full_qa`, `test_interactions`, `test_layout`, `test_fonts`, `test_images`, `quick_security`.
+What it is: an MCP server (Python, stdio) that audits a finished web project in a real browser.
+Tools: `audit_project` (main: JSON + Markdown report with stable finding IDs, compared with the previous run),
+`compare_reports`, and the quick tools `full_qa`, `test_interactions`, `test_layout`, `test_fonts`, `test_images`,
+`quick_security`.
 
 Follow these steps in order. Do not skip the confirmations: they involve a large download and a change to the
 user's MCP configuration.
@@ -26,10 +28,10 @@ user's MCP configuration.
    The command is the absolute path to `<ENV_DIR>/Scripts/codecheck-mcp` (`.exe` on Windows), no arguments.
    - Claude Code: `claude mcp add --scope user codecheck -- "<ABSOLUTE_PATH>/codecheck-mcp"`
    - Other clients (JSON): `{"mcpServers": {"codecheck": {"command": "<ABSOLUTE_PATH>/codecheck-mcp"}}}`
-   - Optional env vars: `CODECHECK_REPORTS_DIR` (where `report.md` files go, default `~/codecheck-reports`),
+   - Optional env vars: `CODECHECK_REPORTS_DIR` (where reports go, default `~/codecheck-reports`),
      `PLAYWRIGHT_BROWSERS_PATH`.
-6. **Verify.** Restart or reload the MCP client, confirm the server `codecheck` is connected and lists the six
-   tools. A first call such as `test_fonts` with a local project folder is a good smoke test.
+6. **Verify.** Restart or reload the MCP client, confirm the server `codecheck` is connected and lists eight
+   tools. A good smoke test is `audit_project` with `url` set to a local project folder and `checks: ["seo"]`.
    If a tool answers "Chromium ... не установлен", step 4 was not done for the same browser path.
 
 Usage rules: only test projects the user owns or has permission to test. The server is read-only for the checked

@@ -14,7 +14,17 @@ python -m venv .venv
 .venv/Scripts/python -m pytest tests -q
 ```
 
-## Adding or changing a check
+## Adding or changing an audit_project check
+
+Checks of `audit_project` live in `codecheck_mcp/audit/checks/`, one module per category. A module defines
+`CATEGORY`, `PER_VIEWPORT`, `RECOMMENDATIONS` (one line per rule it can emit) and `run(page, ctx) -> list[Finding]`,
+and is registered in `REGISTRY` in `codecheck_mcp/audit/checks/__init__.py`. The page is already loaded; console and
+network events recorded since before the load are in `ctx.events`. Thresholds go to
+`codecheck_mcp/audit/thresholds.py`. If another check can find the same problem, add the rule to `ALIASES` in
+`codecheck_mcp/audit/core/fingerprint.py` so it is reported once. Run `ruff check codecheck_mcp tests` and
+`mypy codecheck_mcp` along with the tests.
+
+## Adding or changing a check of the quick tools
 
 Checks live in `codecheck_mcp/checks/`. A check is a function
 `check_x(browser, url, report, **_)` that opens the page with `new_page` / `goto` from `codecheck_mcp/browser.py`

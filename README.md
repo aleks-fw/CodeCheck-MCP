@@ -6,6 +6,7 @@
 
 <p align="center">
   <a href="#installation">Install</a> ·
+  <a href="#the-fix-loop-build--audit--fix--re-audit">Fix loop</a> ·
   <a href="#tools">Tools</a> ·
   <a href="llms-install.md">For AI agents</a> ·
   <a href="CONTRIBUTING.md">Contributing</a> ·
@@ -20,19 +21,22 @@
   <a href="README.ru.md"><img src="https://img.shields.io/badge/lang-%D0%A0%D1%83%D1%81%D1%81%D0%BA%D0%B8%D0%B9-d64545" alt="Русский"></a>
 </p>
 
-An MCP server that **tests a finished web project by itself**: it opens the site in a real browser (Playwright),
-clicks the buttons, looks at the layout at five screen widths, checks fonts, images and basic security, and hands
-your AI agent a summary plus a `report.md` with screenshots where every problem is outlined in red.
+An MCP server that **audits a finished web project in a real browser** and writes a report another AI can fix code
+from. It opens the site with Playwright, crawls its pages, clicks the buttons, watches the console and the network,
+measures layout at several screen widths, runs axe-core for accessibility, checks SEO, images, fonts, performance
+and basic security, and gives every problem a stable ID, a CSS selector, evidence and a screenshot.
+
+Run it again after the fix and it tells you what was fixed, what is new and what is still there.
 
 Tested on Windows and Python 3.14. Other operating systems and Python versions have not been tested.
 
 | | |
 |---|---|
-| **A real browser** | Chromium via Playwright: real clicks, real layout, real fonts. Nothing is guessed from the source code. |
-| **Finds what users see** | Dead buttons, overlapping or clipped text, horizontal scroll, low contrast, broken images, mismatched fonts. |
-| **Evidence, not opinions** | Each finding comes with a screenshot and a CSS selector. Only measurable rules, no "looks ugly" verdicts. |
-| **Light security pass** | Secrets in files and git history, `.env` in git, missing security headers, insecure cookies. |
-| **Safe by design** | Read-only for your project, isolated browser context, external navigation blocked, secrets masked in reports. |
+| **A real browser** | Chromium via Playwright: real clicks, real layout, real network. Nothing is guessed from the source code. |
+| **Made for a fix loop** | `current.json` with one record per problem: rule, page, selector or URL, evidence and a fingerprint that stays the same between runs. |
+| **Evidence, not opinions** | Every finding says what was measured. Critical findings and warnings come with a screenshot, the element outlined in red. |
+| **Regression view** | Each run is compared with the previous one: ✅ Fixed, 🔴 New, ⚠️ Unchanged. |
+| **Safe by design** | Read-only for your project, isolated browser context, navigation to other domains blocked, only passive security checks. |
 
 ## Installation
 
@@ -60,58 +64,248 @@ claude mcp add --scope user codecheck -- "<path>/codecheck-env/Scripts/codecheck
 {
   "mcpServers": {
     "codecheck": {
-      "command": "<path>/codecheck-env/Scripts/codecheck-mcp"
+      "command": "<path>/codecheck-env/Scripts/codecheck-mcp",
+      "env": { "CODECHECK_REPORTS_DIR": "<where reports go>" }
     }
   }
 }
 ```
 
-`<path>` is the absolute path to the folder where you created the environment. Restart the client and `codecheck`
-appears in its MCP list.
+`<path>` is the absolute path to the folder where you created the environment. `CODECHECK_REPORTS_DIR` is optional
+(default `~/codecheck-reports`). Restart the client and `codecheck` appears in its MCP list.
 
 ### If you are an AI agent
 
 Install by following [llms-install.md](llms-install.md).
 
-## Usage
+## The fix loop: Build → Audit → Fix → Re-audit
 
-Just tell your agent, for example: "Run full_qa on `D:\my-site`" or "Run test_layout on https://example.com at
-widths 375 and 1440". `target` is a URL or a path to a project folder or file (for a folder, a temporary local
-server is started).
+1. **Build** the site (or start it locally).
+2. **Audit.** Ask the agent: *"Run audit_project on http://localhost:5173 with criticalSelectors ["#checkout"]"*.
+   You get counts by severity, the list of critical findings and the paths to `report.md` and `current.json`.
+3. **Fix.** *"Read current.json and fix the critical findings and warnings. Use the selector, url and evidence of
+   each finding to locate the code."* Each finding names the rule, the page, the element or resource and what was
+   observed, so the agent does not have to reproduce the bug first.
+4. **Re-audit.** Run `audit_project` again with the same `url`. The answer starts with
+   `Since the previous run: ✅ Fixed 3 · 🔴 New 0 · ⚠️ Unchanged 12`; repeat until nothing critical is left.
+
+A finding only counts as fixed if the new run checked the same category, page and viewport; otherwise it is listed
+as "not rechecked", so a narrower run never reports false fixes.
 
 ## Tools
 
-| Tool | What it checks |
-|---|---|
-| `full_qa(target, max_pages=10)` | Everything below in one go |
-| `test_interactions(target)` | Dead buttons; disabled controls that still react; things that look clickable but do nothing; covered buttons; forms that submit with empty required fields; double click sending a request twice; broken anchors and placeholder links |
-| `test_layout(target, widths=[...])` | At 320/375/768/1024/1440 px: overlapping text, clipped text, horizontal page scroll, text contrast (including text on images), small tap targets |
-| `test_fonts(target)` | Number of font families, outlier fonts, web fonts that failed to load, font-size sprawl, heading hierarchy |
-| `test_images(target)` | Broken, stretched, blurry and heavy images, missing `alt` |
-| `quick_security(target)` | Secrets in files and git history, `.env` tracked by git, no `.gitignore`; for URLs: CSP, HSTS, X-Frame-Options, nosniff, Referrer-Policy, plain HTTP, mixed content, cookie flags |
+| Tool | Parameters | What it does |
+|---|---|---|
+| `audit_project` | `url`, `maxPages=10`, `viewports=[375, 768, 1280]`, `checks=all`, `criticalSelectors=[]`, `outputDir` | Full audit for the fix loop, see below |
+| `compare_reports` | `previous`, `current` (paths to JSON reports) | Fixed / New / Unchanged between any two `audit_project` reports |
+| `full_qa` | `target`, `max_pages=10` | Quick QA with the checks below, report in Russian |
+| `test_interactions` | `target`, `max_pages` | Dead buttons, disabled controls that react, covered buttons, forms, double submit, broken anchors |
+| `test_layout` | `target`, `max_pages`, `widths=[320, 375, 768, 1024, 1440]` | Overlapping and clipped text, horizontal scroll, contrast (also on images), tap targets under 44 px |
+| `test_fonts` | `target`, `max_pages` | Font families, outlier fonts, failed web fonts, size sprawl, heading hierarchy |
+| `test_images` | `target`, `max_pages` | Broken, stretched, blurry, heavy images, missing `alt` |
+| `quick_security` | `target`, `max_pages=3` | Secrets in files and git history, `.env` in git, headers, cookies, mixed content |
 
-Reports are written to `~/codecheck-reports/<date-time>/report.md`. Change the folder with the
-`CODECHECK_REPORTS_DIR` environment variable.
+`url` / `target` is a URL or a path to a project folder or file; for a folder a temporary local server is started.
+
+### audit_project
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `url` | required | Site URL or project folder / file |
+| `maxPages` | `10` | Pages to crawl, same origin only |
+| `viewports` | `[375, 768, 1280]` | Screen widths in px (heights 812, 1024, 800) |
+| `checks` | all | Any of `interaction`, `layout`, `images`, `fonts`, `console`, `accessibility`, `seo`, `performance`, `security`, `network` |
+| `criticalSelectors` | `[]` | Selectors of key actions (e.g. `#checkout`); if one does nothing on click, the finding is critical |
+| `outputDir` | `<CODECHECK_REPORTS_DIR>/<project>` | Where `current.json`, `previous.json`, `report.md` and `screenshots/` go |
+
+Example call:
+
+```json
+{
+  "url": "http://127.0.0.1:8765/",
+  "criticalSelectors": ["#checkout"],
+  "viewports": [375, 768, 1280]
+}
+```
+
+Answer (real run on [examples/demo-shop](examples/demo-shop), second run after adding a missing `<title>`):
+
+```text
+CodeCheck audit of http://127.0.0.1:8765/: 7 page(s), viewports 375x812, 768x1024, 1280x800.
+Critical: 5 · Warnings: 4 · Notices: 25
+
+Critical:
+- CC-001 `interaction/no-effect` on /buttons.html: Clicking #checkout does nothing
+- CC-002 `console/uncaught-exception` on /errors.html: Uncaught exception: ReferenceError: cartItems is not defined
+- CC-003 `accessibility/image-alt` on /media.html: Images must have alternative text
+- CC-004 `network/api-5xx` on /api.html: API request returned HTTP 500
+- CC-005 `network/script-failed` on /media.html: JavaScript file did not load
+
+Since the previous run: ✅ Fixed 1 · 🔴 New 0 · ⚠️ Unchanged 34
+Fixed:
+  CC-009 `seo/missing-title` on `/notitle.html`: Page has no title
+
+Report: .../report.md
+JSON: .../current.json
+Screenshots: .../screenshots
+```
+
+A fragment of the same `report.md`:
+
+```markdown
+## Changes since the previous run
+
+✅ Fixed: 1 · 🔴 New: 0 · ⚠️ Unchanged: 34
+
+### ✅ Fixed
+
+- CC-009 `seo/missing-title` on `/notitle.html`: Page has no title
+
+## Summary
+
+| Severity | Count |
+|---|---|
+| 🔴 Critical | 5 |
+| 🟠 Warnings | 4 |
+| 🟡 Notices | 25 |
+
+## 🔴 Critical (5)
+
+### interaction
+
+#### CC-001 · `interaction/no-effect`
+
+**Clicking #checkout does nothing**
+
+Clicking #checkout on /buttons.html produced no navigation, URL change, network request or visible DOM change
+within 2 seconds. This control may depend on app state (cart, login): the page was reloaded before the click,
+so the state may have been reset.
+
+- **Page:** `/buttons.html`
+- **Selector:** `#checkout`
+- **Fingerprint:** `0efe5a1a7da1d417`
+
+![CC-001](screenshots/CC-001.png)
+```
+
+The report ends with the list of tested pages and one recommendation per rule that was found.
+
+### Finding format (`current.json`)
+
+```ts
+interface Finding {
+  id: string;           // CC-001, CC-002... numbered within the run
+  fingerprint: string;  // stable hash of rule + page + (selector or url) for comparing runs
+  severity: "critical" | "warning" | "notice";
+  category: "interaction" | "layout" | "images" | "fonts" | "console"
+          | "accessibility" | "seo" | "performance" | "security" | "network";
+  rule: string;         // e.g. "seo/missing-title"
+  page: string;         // e.g. "/checkout"
+  message: string;      // short description
+  details: string;      // what exactly was observed
+  selector?: string;    // shortest unique CSS selector
+  url?: string;         // for resources and requests
+  viewport?: string;    // e.g. "375x812"
+  screenshot?: string;  // relative path, critical and warning only
+  evidence?: Record<string, unknown>;  // status, size, duration, stack...
+}
+```
+
+`current.json` also holds the run metadata (`tool`, `version`, `project`, `url`, `date`, `pages`, `viewports`,
+`checks`, `errors`, `summary`) and, from the second run on, a `comparison` block with the fingerprints of fixed,
+new and unchanged findings.
+
+### What audit_project checks
+
+| Category | Rules (severity) |
+|---|---|
+| console | uncaught exception (critical), unhandled promise rejection (warning), `console.error` (warning); stack and source file:line, repeats counted |
+| network | API 5xx (critical), API 4xx (warning, except 401/403 on a login page), JS/CSS failed (critical), image/font failed (warning), request failed (warning), request over 1 s / 3 s (notice / warning) |
+| seo | missing or empty title, missing meta description, missing `lang`, no `<h1>` (warning); several `<h1>`, skipped heading levels, no canonical, no favicon, no Open Graph, no robots.txt / sitemap.xml (notice) |
+| images | image did not load, missing `alt` (warning); file over 200 KB / 1 MB (notice / warning); natural size over 2× the displayed size (notice) |
+| accessibility | [axe-core](https://github.com/dequelabs/axe-core) WCAG 2.x A/AA rules (critical / serious / moderate+minor → critical / warning / notice); `onclick` elements unreachable by keyboard, no visible focus on Tab (warning) |
+| layout | horizontal scroll with the deepest element past the edge (warning), text clipped by `overflow: hidden` (notice), tap targets under 24×24 px at 375 px (notice); every viewport |
+| fonts | `@font-face` font failed to load (warning), text shown in a fallback because the declared font never loaded (notice) |
+| performance | load over 3 s, LCP over 2.5 / 4 s, CLS over 0.1 / 0.25, page over 3 MB, over 100 requests, JS file over 500 KB, CSS file over 150 KB; thresholds in [thresholds.py](codecheck_mcp/audit/thresholds.py) |
+| interaction | clicks up to 20 buttons, `href="#"` / `javascript:` links and `role="button"` per page on a fresh load and watches 2 s for navigation, URL change, requests, DOM changes, dialogs, new tabs; skips logout / delete; critical for `criticalSelectors` |
+| security | plain HTTP (not localhost), mixed content (warning); no CSP, no `nosniff`, no HSTS (notice); cookies without `Secure` or session cookies without `HttpOnly` (warning); public source maps (notice) |
+
+If axe and another check find the same thing (for example a missing `alt` or `lang`), it is reported once.
+
+## Try it on the demo shop
+
+[examples/demo-shop](examples/demo-shop) is a small site with one deliberate bug per page (script errors, a broken
+image and script, an API that answers 500, horizontal scroll on phones, a dead checkout button, a page without a
+title) and a clean home page.
+
+```bash
+python examples/demo-shop/serve.py 8765
+# then ask your agent: run audit_project on http://127.0.0.1:8765/ with criticalSelectors ["#checkout"]
+```
+
+## Architecture
+
+```text
+codecheck_mcp/
+  server.py                 MCP tools
+  browser.py                Playwright launch, local server for folders, external-domain blocking
+  checks/                   checks of the quick tools (full_qa, test_*)
+  audit/
+    runner.py               audit_project: crawl, run checks per viewport, merge duplicates, write reports
+    thresholds.py           every threshold in one place
+    core/                   finding, fingerprint, selector, screenshot, crawler, session (events per page)
+    checks/                 one module per category; each has run(page, ctx) -> list[Finding]
+    report/                 json_report, markdown, diff
+  vendor/axe.min.js         axe-core 4.13.0, unmodified (MPL-2.0)
+```
+
+Every page is loaded once per viewport; console and network events are recorded before the page starts loading,
+then each check reads the same page. Checks are registered in `audit/checks/__init__.py`.
 
 ## Safety of the server itself
 
 - Read-only: the project under test is never modified.
-- Clicks run in an isolated browser context, without your cookies or sessions.
-- Navigation to external domains is blocked and reported; external sub-resources load with a 5-second timeout.
-- Secrets are masked in reports (only the first 4 and last 2 characters are shown).
+- Pages open in an isolated browser context, without your cookies or sessions.
+- Navigation to other domains is blocked; `audit_project` does not fill in or submit forms with data and skips
+  buttons that look like logout or delete.
+- Security checks are passive: they read headers, cookies and public files, and never attack the site.
+- Secrets found by `quick_security` are masked in reports.
 - Test only your own projects, or sites you have the owner's permission to test.
+
+## Known limitations
+
+- A full `audit_project` takes about 30 s for a small site; pages with many dead buttons take longer (up to 2 s per
+  click). Lower `maxPages` or narrow `checks` for large sites.
+- Console, network, SEO, images, fonts, accessibility, performance and security run at the widest viewport only;
+  layout runs at every viewport.
+- Server headers and cookies are not checked for a local folder (they come from the temporary server, not from
+  your project).
+- Only the `onclick` attribute is seen, not listeners added with `addEventListener`.
+- Sizes are transferred bytes: a local folder is served without compression, so real hosting may be lighter.
+- The comparison is with the previous run in the same output folder only.
+
+## Roadmap
+
+- Report critical selectors that are not found on any page.
+- Optional session setup (cookies or a login script) to audit pages behind a login.
+- Check console and network at every viewport.
+- A `max duration` limit for very large sites.
+- Test on macOS and Linux.
 
 ## Development
 
 ```bash
-pip install -e ".[test]"
+pip install -e ".[dev]"
 python -m playwright install chromium
 pytest tests -q
+ruff check codecheck_mcp tests
+mypy codecheck_mcp
 ```
 
-The tests use HTML fixtures with deliberate bugs, "clean" pages, and regressions found on a real site.
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+The tests use pages with deliberate bugs, clean pages that must produce no findings, and regressions found on real
+sites. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE). `codecheck_mcp/vendor/axe.min.js` is [axe-core](https://github.com/dequelabs/axe-core)
+by Deque Systems, MPL-2.0, see [codecheck_mcp/vendor](codecheck_mcp/vendor).

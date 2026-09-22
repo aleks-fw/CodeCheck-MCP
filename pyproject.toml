@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "codecheck-mcp"
-version = "0.1.0"
-description = "MCP-сервер: автоматический QA готового веб-проекта (кнопки, вёрстка, шрифты, картинки, лёгкая безопасность)"
+version = "0.2.0"
+description = "MCP server that audits a finished web project in a real browser and writes a report an AI can fix code from"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
