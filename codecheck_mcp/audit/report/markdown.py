@@ -29,8 +29,8 @@ def _finding(f: Finding) -> list[str]:
 
 
 def render(data: dict[str, Any], findings: list[Finding], recommendations: dict[str, str],
-           changes: list[str] | None = None) -> str:
-    """changes: раздел сравнения с прошлым прогоном, идёт сразу после заголовка."""
+           changes: list[str] | None = None, prioritized: list[str] | None = None) -> str:
+    """changes: сравнение с прошлым прогоном, сразу после заголовка; prioritized: Prioritized Issues после него."""
     c = data["summary"]
     out = [
         "# CodeCheck audit report", "",
@@ -41,6 +41,7 @@ def render(data: dict[str, Any], findings: list[Finding], recommendations: dict[
         f"- **Viewports:** {', '.join(data['viewports'])}",
         f"- **Tool:** codecheck-mcp {data['version']}", "",
         *(changes or []),
+        *(prioritized or []),
         "## Summary", "",
         "| Severity | Count |", "|---|---|",
         *[f"| {SECTION[s]} | {c[s]} |" for s in SEVERITIES], "",

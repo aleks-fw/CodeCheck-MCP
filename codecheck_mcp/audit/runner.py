@@ -21,7 +21,7 @@ from .core.finding import CATEGORIES, SEVERITIES, Finding
 from .core.screenshot import capture
 from .core.session import PageContext, Site, open_page, page_path
 from .report import diff as diff_report
-from .report import json_report, markdown
+from .report import json_report, markdown, priority
 
 SHOT_SEVERITIES = ("critical", "warning")
 # это правило выдаёт сам обход страниц, а не проверка из реестра
@@ -49,6 +49,7 @@ class AuditResult:
     data: dict[str, Any]
     findings: list[Finding]
     diff: diff_report.Diff | None = None
+    groups: list[priority.Group] | None = None
 
     def summary_text(self) -> str:
         c = self.data["summary"]
@@ -60,6 +61,9 @@ class AuditResult:
         crit = [f for f in self.findings if f.severity == "critical"]
         if crit:
             lines += ["", "Critical:"] + [f"- {f.id} `{f.rule}` on {f.page}: {f.message}" for f in crit]
+        top = priority.summary(self.groups or [])
+        if top:
+            lines += [""] + top
         lines += [""] + diff_report.summary(self.diff)
         if self.data["errors"]:
             lines += ["", f"Run errors: {len(self.data['errors'])} check run(s) failed, see report.md."]
@@ -170,11 +174,14 @@ def audit(target: str, max_pages: int = T.DEFAULT_MAX_PAGES, viewports: list[int
             data["comparison"] = diff.to_dict()
         except (ValueError, KeyError, TypeError) as e:  # испорченный previous.json не должен ронять прогон
             errors.append({"check": "compare", "page": "-", "viewport": "-", "error": f"previous.json: {e}"})
-    json_report.write(out / "current.json", data)
     recs = {**CRAWL_RECOMMENDATIONS, **recommendations(modules)}
+    groups = priority.build(findings, len(pages))
+    data["groups"] = priority.to_json(groups, recs)
+    json_report.write(out / "current.json", data)
     changes = diff_report.render(diff, target)
-    (out / "report.md").write_text(markdown.render(data, findings, recs, changes), encoding="utf-8")
-    return AuditResult(out, data, findings, diff)
+    prioritized = priority.render(groups, recs)
+    (out / "report.md").write_text(markdown.render(data, findings, recs, changes, prioritized), encoding="utf-8")
+    return AuditResult(out, data, findings, diff, groups)
 
 
 def _audit_page(browser, site: Site, url: str, sizes, modules, col: _Collector, errors) -> list[str] | None:

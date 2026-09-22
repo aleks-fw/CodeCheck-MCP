@@ -172,3 +172,19 @@ def test_security_headers_cookies_and_source_maps(served):
 def test_local_folder_skips_server_headers(site, tmp_path):
     res = audit(str(site / "clean.html"), max_pages=1, viewports=[1280], checks=["security"], output_dir=str(tmp_path))
     assert [f.rule for f in res.findings] == ["security/source-map-exposed"], [f.to_dict() for f in res.findings]
+
+
+def test_prioritized_issues_in_report_json_and_answer(served):
+    import json
+    data = json.loads((served.out_dir / "current.json").read_text(encoding="utf-8"))
+    order = next(g for g in data["groups"] if g["rootCause"]["rule"] == "interaction/action-request-failed"
+                 and "/api/order" in g["title"])
+    assert order["severity"] == "CRITICAL" and order["category"] == "functionality"
+    assert order["affectedPages"] == ["/clicks.html"] and order["evidence"]["selectors"] == ["#place-order"]
+    assert order["evidence"]["screenshots"] and order["evidence"]["requests"][0].startswith("POST ")
+    levels = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+    assert [levels.index(g["severity"]) for g in data["groups"]] == sorted(levels.index(g["severity"])
+                                                                           for g in data["groups"])
+    md = (served.out_dir / "report.md").read_text(encoding="utf-8")
+    assert md.index("## Prioritized Issues") < md.index("## Summary")
+    assert "Top issues (" in served.summary_text()
