@@ -1,0 +1,3 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>T</title></head><body><h1>Clean</h1><p id="out"></p>
+<script>fetch('/api/ok').then(r => r.json()).then(d => { document.getElementById('out').textContent = d.ok; });
+Promise.reject(new Error('handled')).catch(() => {});</script></body></html>

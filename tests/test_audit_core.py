@@ -56,6 +56,12 @@ def test_fingerprint_depends_on_rule_page_and_target():
     assert make(url="https://x.test/a.js").fingerprint == fingerprint("seo/missing-title", "/", "https://x.test/a.js")
 
 
+def test_fingerprint_ignores_random_localhost_port():
+    a = make(url="http://127.0.0.1:61598/api/fail").fingerprint
+    assert a == make(url="http://127.0.0.1:50011/api/fail").fingerprint == make(url="http://localhost/api/fail").fingerprint
+    assert a != make(url="https://shop.example/api/fail").fingerprint
+
+
 # ---------- report.md ----------
 
 def test_markdown_report_on_fake_data():

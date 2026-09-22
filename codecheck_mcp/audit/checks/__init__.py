@@ -5,12 +5,15 @@
   PER_VIEWPORT: bool              True: запускать на каждом viewport, False: один раз на страницу (самый широкий)
   RECOMMENDATIONS: dict[str, str] рекомендация на каждое правило, которое проверка может выдать
   run(page, ctx) -> list[Finding]
+Проверки идут в порядке списка: network первой, она ждёт тишины в сети, и console видит поздние ошибки.
 """
 from __future__ import annotations
 
 from types import ModuleType
 
-REGISTRY: list[ModuleType] = []
+from . import console, network
+
+REGISTRY: list[ModuleType] = [network, console]
 
 
 def recommendations(modules: list[ModuleType]) -> dict[str, str]:

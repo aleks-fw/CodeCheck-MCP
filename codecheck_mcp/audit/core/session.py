@@ -8,6 +8,16 @@ from urllib.parse import urlparse
 from ...browser import PAGE_TIMEOUT_MS, external_route_handler
 from .selector import SELECTOR_JS
 
+# pageerror ловит не все отклонённые промисы, поэтому слушаем unhandledrejection сами
+REJECTIONS_JS = """
+window.__ccRejections = [];
+window.addEventListener('unhandledrejection', (e) => {
+  const r = e.reason;
+  window.__ccRejections.push({message: r && r.message !== undefined ? String(r.message) : String(r),
+                              stack: r && r.stack ? String(r.stack) : ''});
+});
+"""
+
 
 @dataclass
 class Site:
@@ -29,6 +39,15 @@ class Site:
 
 
 @dataclass
+class Events:
+    """События страницы, собранные с момента до загрузки."""
+    console: list[dict[str, Any]] = field(default_factory=list)     # только console.error
+    pageerrors: list[dict[str, str]] = field(default_factory=list)
+    requests: dict[Any, dict[str, Any]] = field(default_factory=dict)  # Request -> {state, status, error}
+    blocked: set[str] = field(default_factory=set)                  # переходы на чужие домены, прерванные нами
+
+
+@dataclass
 class PageContext:
     """То, что проверка знает о текущей странице: адрес, viewport и события, собранные до загрузки."""
     site: Site
@@ -38,7 +57,7 @@ class PageContext:
     primary: bool                   # самый широкий viewport: на нём идут проверки «один раз на страницу»
     browser_context: Any = None
     response: Any = None            # ответ на загрузку документа
-    events: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    events: Events = field(default_factory=Events)
 
     @property
     def path(self) -> str:
@@ -54,11 +73,46 @@ def page_path(url: str) -> str:
     return (u.path or "/") + (f"?{u.query}" if u.query else "")
 
 
+def _listen(page, ev: Events) -> None:
+    def on_console(msg):
+        if msg.type == "error":
+            ev.console.append({"text": msg.text, "location": msg.location})
+
+    def on_pageerror(err):
+        ev.pageerrors.append({"name": err.name or "", "message": err.message or "", "stack": err.stack or ""})
+
+    def on_request(req):
+        ev.requests[req] = {"state": "pending", "status": None, "error": None}
+
+    def on_response(resp):
+        rec = ev.requests.get(resp.request)
+        if rec is not None:
+            rec["status"] = resp.status
+
+    def on_finished(req):
+        if req in ev.requests:
+            ev.requests[req]["state"] = "finished"
+
+    def on_failed(req):
+        if req in ev.requests:
+            ev.requests[req].update(state="failed", error=req.failure)
+
+    page.on("console", on_console)
+    page.on("pageerror", on_pageerror)
+    page.on("request", on_request)
+    page.on("response", on_response)
+    page.on("requestfinished", on_finished)
+    page.on("requestfailed", on_failed)
+
+
 def open_page(browser, site: Site, url: str, width: int, height: int):
-    """Изолированный контекст: внешние переходы заблокированы, генератор селекторов подключён до загрузки."""
+    """Изолированный контекст: слушатели и init-скрипты подключены до загрузки, внешние переходы заблокированы."""
+    ev = Events()
     bctx = browser.new_context(viewport={"width": width, "height": height})
     bctx.set_default_timeout(PAGE_TIMEOUT_MS)
-    bctx.route("**/*", external_route_handler(urlparse(url).netloc))
+    bctx.route("**/*", external_route_handler(urlparse(url).netloc, ev.blocked.add))
     page = bctx.new_page()
     page.add_init_script(SELECTOR_JS)
-    return bctx, page
+    page.add_init_script(REJECTIONS_JS)
+    _listen(page, ev)
+    return bctx, page, ev

@@ -23,6 +23,10 @@ from .core.session import PageContext, Site, open_page, page_path
 from .report import json_report, markdown
 
 SHOT_SEVERITIES = ("critical", "warning")
+# это правило выдаёт сам обход страниц, а не проверка из реестра
+CRAWL_RECOMMENDATIONS = {
+    "network/page-unavailable": "Fix the link to this page or restore the page: users following it get an error.",
+}
 
 
 def project_name(target: str) -> str:
@@ -133,7 +137,7 @@ def audit(target: str, max_pages: int = T.DEFAULT_MAX_PAGES, viewports: list[int
     order = {s: i for i, s in enumerate(SEVERITIES)}
     cat_order = {c: i for i, c in enumerate(CATEGORIES)}
     findings = sorted(col.found.values(), key=lambda f: (order[f.severity], cat_order[f.category], f.page, f.rule,
-                                                          f.selector or f.url or ""))
+                                                          f.target))
     key_of = {id(f): k for k, f in col.found.items()}
     for n, f in enumerate(findings, 1):
         f.id = f"CC-{n:03d}"
@@ -148,7 +152,8 @@ def audit(target: str, max_pages: int = T.DEFAULT_MAX_PAGES, viewports: list[int
             "errors": errors}
     data = json_report.build(meta, findings)
     json_report.write(out / "current.json", data)
-    (out / "report.md").write_text(markdown.render(data, findings, recommendations(modules)), encoding="utf-8")
+    recs = {**CRAWL_RECOMMENDATIONS, **recommendations(modules)}
+    (out / "report.md").write_text(markdown.render(data, findings, recs), encoding="utf-8")
     return AuditResult(out, data, findings)
 
 
@@ -157,8 +162,8 @@ def _audit_page(browser, site: Site, url: str, sizes, modules, col: _Collector, 
     links: list[str] = []
     for i, (w, h) in enumerate(sizes):
         primary = i == 0
-        bctx, page = open_page(browser, site, url, w, h)
-        ctx = PageContext(site, url, w, h, primary, bctx)
+        bctx, page, events = open_page(browser, site, url, w, h)
+        ctx = PageContext(site, url, w, h, primary, bctx, events=events)
         try:
             try:
                 ctx.response = goto(page, url)

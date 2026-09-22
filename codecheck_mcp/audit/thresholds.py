@@ -7,6 +7,7 @@ DEFAULT_HEIGHT = 800
 DEFAULT_MAX_PAGES = 10
 
 # network
+NETWORK_IDLE_WAIT_MS = 5000   # сколько ждать тишины в сети перед разбором запросов
 SLOW_REQUEST_NOTICE_MS = 1000
 SLOW_REQUEST_WARNING_MS = 3000
 

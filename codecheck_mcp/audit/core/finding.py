@@ -38,11 +38,16 @@ class Finding:
         if self.category not in CATEGORIES:
             raise ValueError(f"unknown category: {self.category}")
         if not self.fingerprint:
-            self.fingerprint = fingerprint(self.rule, self.page, self.selector or self.url)
+            self.fingerprint = fingerprint(self.rule, self.page, self.target)
 
     @property
     def dedupe_key(self) -> str:
-        return dedupe_key(self.rule, self.page, self.selector or self.url)
+        return dedupe_key(self.rule, self.page, self.target)
+
+    @property
+    def target(self) -> str:
+        """Что именно найдено на странице: селектор, иначе URL ресурса, иначе текст (ошибки консоли)."""
+        return self.selector or self.url or self.message
 
     def to_dict(self) -> dict[str, Any]:
         d = {k: getattr(self, k) for k in _FIELDS}
